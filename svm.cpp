@@ -5,6 +5,7 @@
 #include <float.h>
 #include <string.h>
 #include "svm.h"
+typedef signed char schar;
 template <class T> inline T min(T x,T y) { return (x<y)?x:y; }
 template <class T> inline T max(T x,T y) { return (x>y)?x:y; }
 #define EPS_A 1e-12
@@ -300,12 +301,12 @@ class Solver {
 public:
 	Solver() {};
 	virtual ~Solver() {};
-	void Solve(int l_, const Kernel& Q, const double *b, const double *y_,
+	void Solve(int l_, const Kernel& Q, const double *b, const schar *y_,
 		   double *alpha_, double C_, double eps_,
 		   double& obj, double& rho);
 protected:
 	int l;
-	const double *y;
+	const schar *y;
 	double * alpha;
 	double C;
 	double eps;
@@ -327,7 +328,7 @@ protected:
 	virtual double calculate_rho();
 };
 
-void Solver::Solve(int l_, const Kernel& Q, const double *b, const double *y_,
+void Solver::Solve(int l_, const Kernel& Q, const double *b, const schar *y_,
 		   double *alpha_, double C_, double eps_,
 		   double& obj, double& rho)
 {
@@ -389,7 +390,7 @@ void Solver::Solve(int l_, const Kernel& Q, const double *b, const double *y_,
 		double old_alpha_i = alpha[i];
 		double old_alpha_j = alpha[j];
 
-		if(y[i]*y[j] < 0)
+		if(y[i]!=y[j])
 		{
 			double L = max(0.0,alpha[j]-alpha[i]);
 			double H = min(C,C+alpha[j]-alpha[i]);
@@ -498,7 +499,7 @@ int Solver::select_working_set(int &out_i, int &out_j)
 
 	for(int i=0;i<l;i++)
 	{
-		if(y[i]>0)	// y > 0
+		if(y[i]==+1)	// y = +1
 		{
 			if(!is_upper_bound(i))	// d = +1
 			{
@@ -517,7 +518,7 @@ int Solver::select_working_set(int &out_i, int &out_j)
 				}
 			}
 		}
-		else		// y < 0
+		else		// y = -1
 		{
 			if(!is_upper_bound(i))	// d = +1
 			{
@@ -555,9 +556,9 @@ class Solver_NU_SVC : public Solver
 public:
 	Solver_NU_SVC() {}
 	~Solver_NU_SVC() {}
-	void Solve(int l_, const Kernel& Q, const double *b, const double *y_,
+	void Solve(int l_, const Kernel& Q, const double *b, const schar *y_,
 		   double *alpha_, double C_, double eps_,
-		   double& obj, double& rho, const double *y1_, double& r_)
+		   double& obj, double& rho, const schar *y1_, double& r_)
 	{
 		y1 = y1_;
 		r = &r_;
@@ -566,7 +567,7 @@ public:
 private:
 	int select_working_set(int &i, int &j);
 	double calculate_rho();
-	const double *y1;
+	const schar *y1;
 	double* r;
 };
 
@@ -590,7 +591,7 @@ int Solver_NU_SVC::select_working_set(int &out_i, int &out_j)
 
 	for(int i=0;i<l;i++)
 	{
-		if(y1[i]>0)	// y > 0
+		if(y1[i]==+1)	// y == +1
 		{
 			if(!is_upper_bound(i))	// d = +1
 			{
@@ -609,7 +610,7 @@ int Solver_NU_SVC::select_working_set(int &out_i, int &out_j)
 				}
 			}
 		}
-		else		// y < 0
+		else		// y == -1
 		{
 			if(!is_upper_bound(i))	// d = +1
 			{
@@ -655,7 +656,7 @@ double Solver_NU_SVC::calculate_rho()
 
 	for(int i=0;i<l;i++)
 	{
-		if(y1[i] > 0)
+		if(y1[i]==+1)
 		{
 			if(is_lower_bound(i))
 				ub1 = min(ub1,G[i]);
@@ -825,19 +826,20 @@ static void solve_c_svc(
 {
 	int l = prob->l;
 	double *minus_ones = new double[l];
+	schar *y = new schar[l];
+
 	int i;
 
 	for(i=0;i<l;i++)
 	{
 		alpha[i] = 0;
 		minus_ones[i] = -1;
+		if(prob->y[i] > 0) y[i] = +1; else y[i]=-1;
 	}
 
 	Solver s;
-	s.Solve(l, C_SVC_Q(*prob,*param,prob->y), minus_ones, prob->y,
+	s.Solve(l, C_SVC_Q(*prob,*param,prob->y), minus_ones, y,
 		alpha, param->C, param->eps, obj, rho);
-
-	delete[] minus_ones;
 
 	double sum_alpha=0;
 	for(i=0;i<l;i++)
@@ -846,9 +848,12 @@ static void solve_c_svc(
 	printf("nu = %f\n", sum_alpha/(param->C*prob->l));
 
 	for(i=0;i<l;i++)
-		alpha[i] *= prob->y[i];
+		alpha[i] *= y[i];
 
 	upper_bound = param->C;
+
+	delete[] minus_ones;
+	delete[] y;
 }
 
 static void solve_nu_svc(
@@ -861,12 +866,19 @@ static void solve_nu_svc(
 
 	int y_pos = 0;
 	int y_neg = 0;
+	schar *y = new schar[l];
 
 	for(i=0;i<l;i++)
 		if(prob->y[i]>0)
+		{
+			y[i] = +1;
 			++y_pos;
+		}
 		else
+		{
+			y[i] = -1;
 			++y_neg;
+		}
 
 	if(nu < 0 || nu*l/2 > min(y_pos,y_neg))
 	{
@@ -876,9 +888,9 @@ static void solve_nu_svc(
 
 	double sum_pos = nu*l/2;
 	double sum_neg = nu*l/2;
-	
+
 	for(i=0;i<l;i++)
-		if(prob->y[i] > 0)
+		if(y[i] == +1)
 		{
 			alpha[i] = min(1.0,sum_pos);
 			sum_pos -= alpha[i];
@@ -890,7 +902,7 @@ static void solve_nu_svc(
 		}
 
 	double *zeros = new double[l];
-	double *ones = new double[l];
+	schar *ones = new schar[l];
 
 	for(i=0;i<l;i++)
 	{	
@@ -901,19 +913,20 @@ static void solve_nu_svc(
 	double r;
 	Solver_NU_SVC s;
 	s.Solve(l, NU_SVC_Q(*prob,*param,prob->y), zeros, ones,
-		alpha, 1.0, param->eps, obj, rho, prob->y, r);
-
-	delete[] zeros;
-	delete[] ones;
+		alpha, 1.0, param->eps, obj, rho, y, r);
 
 	printf("C = %f\n",1/r);
 
 	for(i=0;i<l;i++)
-		alpha[i] *= prob->y[i]/r;
+		alpha[i] *= y[i]/r;
 
 	rho /= r;
 	obj /= (r*r);
 	upper_bound = 1/r;
+
+	delete[] y;
+	delete[] zeros;
+	delete[] ones;
 }
 
 static void solve_one_class(
@@ -922,7 +935,7 @@ static void solve_one_class(
 {
 	int l = prob->l;
 	double *zeros = new double[l];
-	double *ones = new double[l];
+	schar *ones = new schar[l];
 	int i;
 
 	int n = (int)(param->nu*prob->l);	// # of alpha's at upper bound
@@ -947,10 +960,10 @@ static void solve_one_class(
 	s.Solve(l, ONE_CLASS_Q(*prob,*param), zeros, ones,
 		alpha, 1.0, param->eps, obj, rho);
 
+	upper_bound = 1;
+
 	delete[] zeros;
 	delete[] ones;
-
-	upper_bound = 1;
 }
 
 static void solve_c_svr(
@@ -960,7 +973,7 @@ static void solve_c_svr(
 	int l = prob->l;
 	double *alpha2 = new double[2*l];
 	double *linear_term = new double[2*l];
-	double *y = new double[2*l];
+	schar *y = new schar[2*l];
 	int i;
 
 	for(i=0;i<l;i++)
@@ -981,11 +994,11 @@ static void solve_c_svr(
 	for(i=0;i<l;i++)
 		alpha[i] = alpha2[i] - alpha2[i+l];
 
+	upper_bound = param->C;
+
 	delete[] alpha2;
 	delete[] linear_term;
 	delete[] y;
-
-	upper_bound = param->C;
 }
 
 //
