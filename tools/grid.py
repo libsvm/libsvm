@@ -227,7 +227,7 @@ class SSHWorker(Worker):
         self.host = host
         self.cwd = os.getcwd()
     def run_one(self,c,g):
-        cmdline = 'ssh %s "cd %s; %s -c %s -g %s -v %s %s %s"' % \
+        cmdline = 'ssh -x %s "cd %s; %s -c %s -g %s -v %s %s %s"' % \
           (self.host,self.cwd,
            svmtrain_exe,c,g,fold,pass_through_string,dataset_pathname)
         result = os.popen(cmdline,'r')
@@ -287,9 +287,13 @@ def main():
     # use FIFO, the job will be put
     # into the end of the queue, and the graph
     # will only be updated in the end
-    
+
     def _put(self,item):
-        self.queue.insert(0,item)
+        if sys.hexversion >= 0x020400A1:
+            self.queue.appendleft(item)
+        else:
+            self.queue.insert(0,item)
+
     import new
     job_queue._put = new.instancemethod(_put,job_queue,job_queue.__class__)
 

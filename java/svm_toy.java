@@ -45,7 +45,7 @@ public class svm_toy extends Applet {
 
 	public void init()
 	{
-		Button button_change = new Button("Change");
+		final Button button_change = new Button("Change");
 		Button button_run = new Button("Run");
 		Button button_clear = new Button("Clear");
 		Button button_save = new Button("Save");
@@ -72,6 +72,8 @@ public class svm_toy extends Applet {
 		c.gridwidth = 5;
 		gridbag.setConstraints(input_line,c);
 
+		button_change.setBackground(colors[current_value]);
+
 		p.add(button_change);
 		p.add(button_run);
 		p.add(button_clear);
@@ -82,7 +84,7 @@ public class svm_toy extends Applet {
 
 		button_change.addActionListener(new ActionListener()
 		{ public void actionPerformed (ActionEvent e)
-		  { button_change_clicked(); }});
+		  { button_change_clicked(); button_change.setBackground(colors[current_value]); }});
 
 		button_run.addActionListener(new ActionListener()
 		{ public void actionPerformed (ActionEvent e)
@@ -171,6 +173,7 @@ public class svm_toy extends Applet {
 		param.eps = 1e-3;
 		param.p = 0.1;
 		param.shrinking = 1;
+		param.probability = 0;
 		param.nr_weight = 0;
 		param.weight_label = new int[0];
 		param.weight = new double[0];
@@ -184,7 +187,11 @@ public class svm_toy extends Applet {
 		for(int i=0;i<argv.length;i++)
 		{
 			if(argv[i].charAt(0) != '-') break;
-			++i;
+			if(++i>=argv.length)
+			{
+				System.err.print("unknown option\n");
+				break;
+			}
 			switch(argv[i-1].charAt(1))
 			{
 				case 's':
@@ -219,6 +226,9 @@ public class svm_toy extends Applet {
 					break;
 				case 'h':
 					param.shrinking = atoi(argv[i]);
+					break;
+				case 'b':
+					param.probability = atoi(argv[i]);
 					break;
 				case 'w':
 					++param.nr_weight;
@@ -441,6 +451,11 @@ class AppletFrame extends Frame {
 	AppletFrame(String title, Applet applet, int width, int height)
 	{
 		super(title);
+		this.addWindowListener(new WindowAdapter() {
+			public void windowClosing(WindowEvent e) {
+				System.exit(0);
+			}
+		});
 		applet.init();
 		applet.resize(width,height);
 		applet.start();

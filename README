@@ -13,10 +13,12 @@ Quick Start
 ===========
 
 If you are new to SVM and if the data is not large, please go to 
-python directory and use easy.py after installation. It does 
+tools directory and use easy.py after installation. It does 
 everything automatic -- from data scaling to parameter selection.
 
 Usage: easy.py training_file [testing_file]
+
+More information can be found in tools/README.
 
 Installation
 ============
@@ -137,7 +139,7 @@ Tips on practical use
 =====================
 
 * Scale your data. For example, scale each attribute to [0,1] or [-1,+1].
-* For C-SVC, consider using the model selection tool in the python directory.
+* For C-SVC, consider using the model selection tool in the tools directory.
 * nu in nu-SVC/one-class-SVM/nu-SVR approximates the fraction of training
   errors and support vectors.
 * If data for classification are unbalanced (e.g. many positive and
@@ -489,7 +491,7 @@ in libsvm faq.
 Model Selection
 ===============
 
-See the README file in python directory.
+See the README file in tools directory.
 
 Python Interface
 ================
@@ -499,9 +501,17 @@ See the README file in python directory.
 ADDITIONAL INFORMATION
 ======================
 
-Chih-Chung Chang and Chih-Jen Lin
-LIBSVM : a library for support vector machines.
-http://www.csie.ntu.edu.tw/~cjlin/papers/libsvm.ps.gz
+If you find LIBSVM helpful, please cite it as
+
+Chih-Chung Chang and Chih-Jen Lin, LIBSVM: a library for 
+support vector machines, 2001.
+Software available at http://www.csie.ntu.edu.tw/~cjlin/libsvm
+
+LIBSVM implementation document is available at
+http://www.csie.ntu.edu.tw/~cjlin/papers/libsvm.pdf
+
+For any questions and comments, please send your email to
+cjlin@csie.ntu.edu.tw
 
 Acknowledgments:
 This work was supported in part by the National Science 
