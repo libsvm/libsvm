@@ -179,16 +179,16 @@ Kernel::Kernel(const svm_problem& prob, const svm_parameter& param)
 	switch(kernel_type)
 	{
 		case LINEAR:
-			kernel_function = kernel_linear;
+			kernel_function = &Kernel::kernel_linear;
 			break;
 		case POLY:
-			kernel_function = kernel_poly;
+			kernel_function = &Kernel::kernel_poly;
 			break;
 		case RBF:
-			kernel_function = kernel_rbf;
+			kernel_function = &Kernel::kernel_rbf;
 			break;
 		case SIGMOID:
-			kernel_function = kernel_sigmoid;
+			kernel_function = &Kernel::kernel_sigmoid;
 			break;
 		default:
 			fprintf(stderr,"unknown kernel function.\n");
