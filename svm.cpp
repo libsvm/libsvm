@@ -6,6 +6,7 @@
 #include <string.h>
 #include <stdarg.h>
 #include "svm.h"
+typedef float Qfloat;
 typedef signed char schar;
 #ifndef min
 template <class T> inline T min(T x,T y) { return (x<y)?x:y; }
@@ -53,7 +54,7 @@ public:
 	// request data [0,len)
 	// return some position p where [p,len) need to be filled
 	// (p >= len if nothing needs to be filled)
-	int get_data(const int index, double **data, int len);
+	int get_data(const int index, Qfloat **data, int len);
 	void swap_index(int i, int j);	// future_option
 private:
 	int l;
@@ -61,7 +62,7 @@ private:
 	struct head_t
 	{
 		head_t *prev, *next;	// a cicular list
-		double *data;
+		Qfloat *data;
 		int len;		// data[0,len) is cached in this entry
 	};
 
@@ -74,8 +75,8 @@ private:
 Cache::Cache(int l_,int size_):l(l_),size(size_)
 {
 	head = (head_t *)calloc(l,sizeof(head_t));	// initialized to 0
-	size /= sizeof(double);
-	size -= l * sizeof(head_t) / sizeof(double);
+	size /= sizeof(Qfloat);
+	size -= l * sizeof(head_t) / sizeof(Qfloat);
 	lru_head.next = lru_head.prev = &lru_head;
 }
 
@@ -102,7 +103,7 @@ void Cache::lru_insert(head_t *h)
 	h->next->prev = h;
 }
 
-int Cache::get_data(const int index, double **data, int len)
+int Cache::get_data(const int index, Qfloat **data, int len)
 {
 	head_t *h = &head[index];
 	if(h->len) lru_delete(h);
@@ -122,7 +123,7 @@ int Cache::get_data(const int index, double **data, int len)
 		}
 
 		// allocate new space
-		h->data = (double *)realloc(h->data,sizeof(double)*len);
+		h->data = (Qfloat *)realloc(h->data,sizeof(Qfloat)*len);
 		size -= more;
 		swap(h->len,len);
 	}
@@ -177,7 +178,7 @@ public:
 
 	static double k_function(const svm_node *x, const svm_node *y,
 				 const svm_parameter& param);
-	virtual double *get_Q(int column, int len) const = 0;
+	virtual Qfloat *get_Q(int column, int len) const = 0;
 	virtual void swap_index(int i, int j) const	// no so const...
 	{
 		swap(x[i],x[j]);
@@ -435,7 +436,7 @@ void Solver::reconstruct_gradient()
 	for(i=0;i<active_size;i++)
 		if(is_free(i))
 		{
-			const double *Q_i = Q->get_Q(i,l);
+			const Qfloat *Q_i = Q->get_Q(i,l);
 			double alpha_i = alpha[i];
 			for(int j=active_size;j<l;j++)
 				G[j] += alpha_i * Q_i[j];
@@ -484,7 +485,7 @@ void Solver::Solve(int l, const Kernel& Q, const double *b_, const schar *y_,
 		for(i=0;i<l;i++)
 			if(!is_lower_bound(i))
 			{
-				double *Q_i = Q.get_Q(i,l);
+				Qfloat *Q_i = Q.get_Q(i,l);
 				double alpha_i = alpha[i];
 				int j;
 				for(j=0;j<l;j++)
@@ -529,8 +530,8 @@ void Solver::Solve(int l, const Kernel& Q, const double *b_, const schar *y_,
 
 		// update alpha[i] and alpha[j], handle bounds carefully
 		
-		const double *Q_i = Q.get_Q(i,active_size);
-		const double *Q_j = Q.get_Q(j,active_size);
+		const Qfloat *Q_i = Q.get_Q(i,active_size);
+		const Qfloat *Q_j = Q.get_Q(j,active_size);
 
 		double C_i = get_C(i);
 		double C_j = get_C(j);
@@ -1123,14 +1124,14 @@ public:
 		cache = new Cache(prob.l,(int)(param.cache_size*(1<<20)));
 	}
 	
-	double *get_Q(int i, int len) const
+	Qfloat *get_Q(int i, int len) const
 	{
-		double *data;
+		Qfloat *data;
 		int start;
 		if((start = cache->get_data(i,&data,len)) < len)
 		{
 			for(int j=start;j<len;j++)
-				data[j] = y[i]*y[j]*(this->*kernel_function)(i,j);
+				data[j] = (Qfloat)(y[i]*y[j]*(this->*kernel_function)(i,j));
 		}
 		return data;
 	}
@@ -1161,16 +1162,22 @@ public:
 		cache = new Cache(prob.l,(int)(param.cache_size*(1<<20)));
 	}
 	
-	double *get_Q(int i, int len) const
+	Qfloat *get_Q(int i, int len) const
 	{
-		double *data;
+		Qfloat *data;
 		int start;
 		if((start = cache->get_data(i,&data,len)) < len)
 		{
 			for(int j=start;j<len;j++)
-				data[j] = (this->*kernel_function)(i,j);
+				data[j] = (Qfloat)(this->*kernel_function)(i,j);
 		}
 		return data;
+	}
+
+	void swap_index(int i, int j) const
+	{
+		cache->swap_index(i,j);
+		Kernel::swap_index(i,j);
 	}
 
 	~ONE_CLASS_Q()
@@ -1198,8 +1205,8 @@ public:
 			index[k] = k;
 			index[k+l] = k;
 		}
-		buffer[0] = new double[2*l];
-		buffer[1] = new double[2*l];
+		buffer[0] = new Qfloat[2*l];
+		buffer[1] = new Qfloat[2*l];
 		next_buffer = 0;
 	}
 
@@ -1209,18 +1216,18 @@ public:
 		swap(index[i],index[j]);
 	}
 	
-	double *get_Q(int i, int len) const
+	Qfloat *get_Q(int i, int len) const
 	{
-		double *data;
+		Qfloat *data;
 		int real_i = index[i];
 		if(cache->get_data(real_i,&data,l) < l)
 		{
 			for(int j=0;j<l;j++)
-				data[j] = (this->*kernel_function)(real_i,j);
+				data[j] = (Qfloat)(this->*kernel_function)(real_i,j);
 		}
 
 		// reorder and copy
-		double *buf = buffer[next_buffer];
+		Qfloat *buf = buffer[next_buffer];
 		next_buffer = 1 - next_buffer;
 		schar si = sign[i];
 		for(int j=0;j<len;j++)
@@ -1242,7 +1249,7 @@ private:
 	schar *sign;
 	int *index;
 	mutable int next_buffer;
-	double* buffer[2];
+	Qfloat* buffer[2];
 };
 
 //

@@ -1,4 +1,6 @@
 define(`swap',`do {$1 _=$2; $2=$3; $3=_;} while(false)')
+define(`Qfloat',`float')
+define(`SIZE_OF_QFLOAT',4)
 import java.io.*;
 import java.util.*;
 
@@ -14,7 +16,7 @@ class Cache {
 	private final class head_t
 	{
 		head_t prev, next;	// a cicular list
-		double[] data;
+		Qfloat[] data;
 		int len;		// data[0,len) is cached in this entry
 	}
 	private final head_t[] head;
@@ -26,8 +28,8 @@ class Cache {
 		size = size_;
 		head = new head_t[l];
 		for(int i=0;i<l;i++) head[i] = new head_t();
-		size /= 8;
-		size -= l * 2;	// sizeof(head_t) / sizeof(double)
+		size /= SIZE_OF_QFLOAT;
+		size -= l * (16/SIZE_OF_QFLOAT);	// sizeof(head_t) == 16
 		lru_head = new head_t();
 		lru_head.next = lru_head.prev = lru_head;
 	}
@@ -52,7 +54,7 @@ class Cache {
 	// return some position p where [p,len) need to be filled
 	// (p >= len if nothing needs to be filled)
 	// java: simulate pointer using single-element array
-	int get_data(int index, double[][] data, int len)
+	int get_data(int index, Qfloat[][] data, int len)
 	{
 		head_t h = head[index];
 		if(h.len > 0) lru_delete(h);
@@ -71,7 +73,7 @@ class Cache {
 			}
 
 			// allocate new space
-			double[] new_data = new double[len];
+			Qfloat[] new_data = new Qfloat[len];
 			if(h.data != null) System.arraycopy(h.data,0,new_data,0,h.len);
 			h.data = new_data;
 			size -= more;
@@ -89,7 +91,7 @@ class Cache {
 		
 		if(head[i].len > 0) lru_delete(head[i]);
 		if(head[j].len > 0) lru_delete(head[j]);
-		swap(double[],head[i].data,head[j].data);
+		swap(Qfloat[],head[i].data,head[j].data);
 		swap(int,head[i].len,head[j].len);
 		if(head[i].len > 0) lru_insert(head[i]);
 		if(head[j].len > 0) lru_insert(head[j]);
@@ -100,7 +102,7 @@ class Cache {
 			if(h.len > i)
 			{
 				if(h.len > j)
-					swap(double,h.data[i],h.data[j]);
+					swap(Qfloat,h.data[i],h.data[j]);
 				else
 				{
 					// give up
@@ -131,7 +133,7 @@ abstract class Kernel {
 	private final double gamma;
 	private final double coef0;
 
-	abstract double[] get_Q(int column, int len);
+	abstract Qfloat[] get_Q(int column, int len);
 
 	void swap_index(int i, int j)
 	{
@@ -352,7 +354,7 @@ class Solver {
 		for(i=0;i<active_size;i++)
 			if(is_free(i))
 			{
-				double[] Q_i = Q.get_Q(i,l);
+				Qfloat[] Q_i = Q.get_Q(i,l);
 				double alpha_i = alpha[i];
 				for(int j=active_size;j<l;j++)
 					G[j] += alpha_i * Q_i[j];
@@ -400,7 +402,7 @@ class Solver {
 			for(i=0;i<l;i++)
 				if(!is_lower_bound(i))
 				{
-					double[] Q_i = Q.get_Q(i,l);
+					Qfloat[] Q_i = Q.get_Q(i,l);
 					double alpha_i = alpha[i];
 					int j;
 					for(j=0;j<l;j++)
@@ -448,8 +450,8 @@ class Solver {
 
 			// update alpha[i] and alpha[j], handle bounds carefully
 
-			double[] Q_i = Q.get_Q(i,active_size);
-			double[] Q_j = Q.get_Q(j,active_size);
+			Qfloat[] Q_i = Q.get_Q(i,active_size);
+			Qfloat[] Q_j = Q.get_Q(j,active_size);
 
 			double C_i = get_C(i);
 			double C_j = get_C(j);
@@ -1029,14 +1031,14 @@ class SVC_Q extends Kernel
 		cache = new Cache(prob.l,(int)(param.cache_size*(1<<20)));
 	}
 
-	double[] get_Q(int i, int len)
+	Qfloat[] get_Q(int i, int len)
 	{
-		double[][] data = new double[1][];
+		Qfloat[][] data = new Qfloat[1][];
 		int start;
 		if((start = cache.get_data(i,data,len)) < len)
 		{
 			for(int j=start;j<len;j++)
-				data[0][j] = y[i]*y[j]*kernel_function(i,j);
+				data[0][j] = (Qfloat)(y[i]*y[j]*kernel_function(i,j));
 		}
 		return data[0];
 	}
@@ -1059,16 +1061,22 @@ class ONE_CLASS_Q extends Kernel
 		cache = new Cache(prob.l,(int)(param.cache_size*(1<<20)));
 	}
 
-	double[] get_Q(int i, int len)
+	Qfloat[] get_Q(int i, int len)
 	{
-		double[][] data = new double[1][];
+		Qfloat[][] data = new Qfloat[1][];
 		int start;
 		if((start = cache.get_data(i,data,len)) < len)
 		{
 			for(int j=start;j<len;j++)
-				data[0][j] = kernel_function(i,j);
+				data[0][j] = (Qfloat)kernel_function(i,j);
 		}
 		return data[0];
+	}
+
+	void swap_index(int i, int j)
+	{
+		cache.swap_index(i,j);
+		super.swap_index(i,j);
 	}
 }
 
@@ -1079,7 +1087,7 @@ class SVR_Q extends Kernel
 	private final byte[] sign;
 	private final int[] index;
 	private int next_buffer;
-	private double[][] buffer;
+	private Qfloat[][] buffer;
 
 	SVR_Q(svm_problem prob, svm_parameter param)
 	{
@@ -1095,7 +1103,7 @@ class SVR_Q extends Kernel
 			index[k] = k;
 			index[k+l] = k;
 		}
-		buffer = new double[2][2*l];
+		buffer = new Qfloat[2][2*l];
 		next_buffer = 0;
 	}
 
@@ -1105,18 +1113,18 @@ class SVR_Q extends Kernel
 		swap(int,index[i],index[j]);
 	}
 
-	double[] get_Q(int i, int len)
+	Qfloat[] get_Q(int i, int len)
 	{
-		double[][] data = new double[1][];
+		Qfloat[][] data = new Qfloat[1][];
 		int real_i = index[i];
 		if(cache.get_data(real_i,data,l) < l)
 		{
 			for(int j=0;j<l;j++)
-				data[0][j] = kernel_function(real_i,j);
+				data[0][j] = (Qfloat)kernel_function(real_i,j);
 		}
 
 		// reorder and copy
-		double buf[] = buffer[next_buffer];
+		Qfloat buf[] = buffer[next_buffer];
 		next_buffer = 1 - next_buffer;
 		byte si = sign[i];
 		for(int j=0;j<len;j++)
