@@ -124,7 +124,12 @@ class Cache {
 // the constructor of Kernel prepares to calculate the l*l kernel matrix
 // the member function get_Q is for getting one column from the Q Matrix
 //
-abstract class Kernel {
+abstract class QMatrix {
+	abstract float[] get_Q(int column, int len);
+	abstract void swap_index(int i, int j);
+};
+
+abstract class Kernel extends QMatrix {
 	private svm_node[][] x;
 	private final double[] x_square;
 
@@ -289,7 +294,7 @@ class Solver {
 	static final byte FREE = 2;
 	byte[] alpha_status;	// LOWER_BOUND, UPPER_BOUND, FREE
 	double[] alpha;
-	Kernel Q;
+	QMatrix Q;
 	double eps;
 	double Cp,Cn;
 	double[] b;
@@ -358,7 +363,7 @@ class Solver {
 			}
 	}
 
-	void Solve(int l, Kernel Q, double[] b_, byte[] y_,
+	void Solve(int l, QMatrix Q, double[] b_, byte[] y_,
 		   double[] alpha_, double Cp, double Cn, double eps, SolutionInfo si, int shrinking)
 	{
 		this.l = l;
@@ -624,7 +629,7 @@ class Solver {
 			{
 				if(!is_upper_bound(i))	// d = +1
 				{
-					if(-G[i] > Gmax1)
+					if(-G[i] >= Gmax1)
 					{
 						Gmax1 = -G[i];
 						Gmax1_idx = i;
@@ -632,7 +637,7 @@ class Solver {
 				}
 				if(!is_lower_bound(i))	// d = -1
 				{
-					if(G[i] > Gmax2)
+					if(G[i] >= Gmax2)
 					{
 						Gmax2 = G[i];
 						Gmax2_idx = i;
@@ -643,7 +648,7 @@ class Solver {
 			{
 				if(!is_upper_bound(i))	// d = +1
 				{
-					if(-G[i] > Gmax2)
+					if(-G[i] >= Gmax2)
 					{
 						Gmax2 = -G[i];
 						Gmax2_idx = i;
@@ -651,7 +656,7 @@ class Solver {
 				}
 				if(!is_lower_bound(i))	// d = -1
 				{
-					if(G[i] > Gmax1)
+					if(G[i] >= Gmax1)
 					{
 						Gmax1 = G[i];
 						Gmax1_idx = i;
@@ -787,7 +792,7 @@ final class Solver_NU extends Solver
 {
 	private SolutionInfo si;
 
-	void Solve(int l, Kernel Q, double[] b, byte[] y,
+	void Solve(int l, QMatrix Q, double[] b, byte[] y,
 		   double[] alpha, double Cp, double Cn, double eps,
 		   SolutionInfo si, int shrinking)
 	{
@@ -819,7 +824,7 @@ final class Solver_NU extends Solver
 			{
 				if(!is_upper_bound(i))	// d = +1
 				{
-					if(-G[i] > Gmax1)
+					if(-G[i] >= Gmax1)
 					{
 						Gmax1 = -G[i];
 						Gmax1_idx = i;
@@ -827,7 +832,7 @@ final class Solver_NU extends Solver
 				}
 				if(!is_lower_bound(i))	// d = -1
 				{
-					if(G[i] > Gmax2)
+					if(G[i] >= Gmax2)
 					{
 						Gmax2 = G[i];
 						Gmax2_idx = i;
@@ -838,7 +843,7 @@ final class Solver_NU extends Solver
 			{
 				if(!is_upper_bound(i))	// d = +1
 				{
-					if(-G[i] > Gmax3)
+					if(-G[i] >= Gmax3)
 					{
 						Gmax3 = -G[i];
 						Gmax3_idx = i;
@@ -846,7 +851,7 @@ final class Solver_NU extends Solver
 				}
 				if(!is_lower_bound(i))	// d = -1
 				{
-					if(G[i] > Gmax4)
+					if(G[i] >= Gmax4)
 					{
 						Gmax4 = G[i];
 						Gmax4_idx = i;
@@ -1502,22 +1507,22 @@ public class svm {
 	// Method 2 from the multiclass_prob paper by Wu, Lin, and Weng
 	private static void multiclass_probability(int k, double[][] r, double[] p)
 	{
-		int t;
+		int t,j;
 		int iter = 0, max_iter=100;
 		double[][] Q=new double[k][k];
 		double[] Qp= new double[k];
-		double pQp, eps=0.001;
+		double pQp, eps=0.005/k;
 	
 		for (t=0;t<k;t++)
 		{
 			p[t]=1.0/k;  // Valid if k = 1
 			Q[t][t]=0;
-			for (int j=0;j<t;j++)
+			for (j=0;j<t;j++)
 			{
 				Q[t][t]+=r[j][t]*r[j][t];
 				Q[t][j]=Q[j][t];
 			}
-			for (int j=t+1;j<k;j++)
+			for (j=t+1;j<k;j++)
 			{
 				Q[t][t]+=r[j][t]*r[j][t];
 				Q[t][j]=-r[j][t]*r[t][j];
@@ -1530,7 +1535,7 @@ public class svm {
 			for (t=0;t<k;t++)
 			{
 				Qp[t]=0;
-				for (int j=0;j<k;j++)
+				for (j=0;j<k;j++)
 					Qp[t]+=Q[t][j]*p[j];
 				pQp+=p[t]*Qp[t];
 			}
@@ -1548,7 +1553,7 @@ public class svm {
 				double diff=(-Qp[t]+pQp)/Q[t][t];
 				p[t]+=diff;
 				pQp=(pQp+diff*(diff*Q[t][t]+2*Qp[t]))/(1+diff)/(1+diff);
-				for (int j=0;j<k;j++)
+				for (j=0;j<k;j++)
 				{
 					Qp[j]=(Qp[j]+diff*Q[t][j])/(1+diff);
 					p[j]/=(1+diff);
@@ -1670,6 +1675,68 @@ public class svm {
 		return mae;
 	}
 
+	// label: label name, start: begin of each class, count: #data of classes, perm: indices to the original data
+	// perm, length l, must be allocated before calling this subroutine
+	private static void svm_group_classes(svm_problem prob, int[] nr_class_ret, int[][] label_ret, int[][] start_ret, int[][] count_ret, int[] perm)
+	{
+		int l = prob.l;
+		int max_nr_class = 16;
+		int nr_class = 0;
+		int[] label = new int[max_nr_class];
+		int[] count = new int[max_nr_class];
+		int[] data_label = new int[l];
+		int i;
+
+		for(i=0;i<l;i++)
+		{
+			int this_label = (int)(prob.y[i]);
+			int j;
+			for(j=0;j<nr_class;j++)
+			{
+				if(this_label == label[j])
+				{
+					++count[j];
+					break;
+				}
+			}
+			data_label[i] = j;
+			if(j == nr_class)
+			{
+				if(nr_class == max_nr_class)
+				{
+					max_nr_class *= 2;
+					int[] new_data = new int[max_nr_class];
+					System.arraycopy(label,0,new_data,0,label.length);
+					label = new_data;
+					new_data = new int[max_nr_class];
+					System.arraycopy(count,0,new_data,0,label.length);
+					count = new_data;					
+				}
+				label[nr_class] = this_label;
+				count[nr_class] = 1;
+				++nr_class;
+			}
+		}
+
+		int[] start = new int[nr_class];
+		start[0] = 0;
+		for(i=1;i<nr_class;i++)
+			start[i] = start[i-1]+count[i-1];
+		for(i=0;i<l;i++)
+		{
+			perm[start[data_label[i]]] = i;
+			++start[data_label[i]];
+		}
+		start[0] = 0;
+		for(i=1;i<nr_class;i++)
+			start[i] = start[i-1]+count[i-1];
+
+		nr_class_ret[0] = nr_class;
+		label_ret[0] = label;
+		start_ret[0] = start;
+		count_ret[0] = count;
+	}
+
 	//
 	// Interface functions
 	//
@@ -1715,68 +1782,28 @@ public class svm {
 					model.SV[j] = prob.x[i];
 					model.sv_coef[0][j] = f.alpha[i];
 					++j;
-				}		
+				}
 		}
 		else
 		{
 			// classification
-			// find out the number of classes
 			int l = prob.l;
-			int max_nr_class = 16;
-			int nr_class = 0;
-			int[] label = new int[max_nr_class];
-			int[] count = new int[max_nr_class];
-			int[] index = new int[l];
-
-			int i;
-			for(i=0;i<l;i++)
-			{
-				int this_label = (int)prob.y[i];
-				int j;
-				for(j=0;j<nr_class;j++)
-					if(this_label == label[j])
-					{
-						++count[j];
-						break;
-					}
-				index[i] = j;
-				if(j == nr_class)
-				{
-					if(nr_class == max_nr_class)
-					{
-						max_nr_class *= 2;
-						int[] new_data = new int[max_nr_class];
-						System.arraycopy(label,0,new_data,0,label.length);
-						label = new_data;
-						
-						new_data = new int[max_nr_class];
-						System.arraycopy(count,0,new_data,0,count.length);
-						count = new_data;
-					}
-					label[nr_class] = this_label;
-					count[nr_class] = 1;
-					++nr_class;
-				}
-			}
+			int[] tmp_nr_class = new int[1];
+			int[][] tmp_label = new int[1][];
+			int[][] tmp_start = new int[1][];
+			int[][] tmp_count = new int[1][];			
+			int[] perm = new int[l];
 
 			// group training data of the same class
-
-			int[] start = new int[nr_class];
-			start[0] = 0;
-			for(i=1;i<nr_class;i++)
-				start[i] = start[i-1]+count[i-1];
-
+			svm_group_classes(prob,tmp_nr_class,tmp_label,tmp_start,tmp_count,perm);
+			int nr_class = tmp_nr_class[0];			
+			int[] label = tmp_label[0];
+			int[] start = tmp_start[0];
+			int[] count = tmp_count[0];
 			svm_node[][] x = new svm_node[l][];
-		
+			int i;
 			for(i=0;i<l;i++)
-			{
-				x[start[index[i]]] = prob.x[i];
-				++start[index[i]];
-			}
-		
-			start[0] = 0;
-			for(i=1;i<nr_class;i++)
-				start[i] = start[i-1]+count[i-1];
+				x[i] = prob.x[perm[i]];
 
 			// calculate weighted C
 
@@ -1784,7 +1811,7 @@ public class svm {
 			for(i=0;i<nr_class;i++)
 				weighted_C[i] = param.C;
 			for(i=0;i<param.nr_weight;i++)
-			{	
+			{
 				int j;
 				for(j=0;j<nr_class;j++)
 					if(param.weight_label[i] == label[j])
@@ -1796,7 +1823,7 @@ public class svm {
 			}
 
 			// train k*(k-1)/2 models
-		
+
 			boolean[] nonzero = new boolean[l];
 			for(i=0;i<l;i++)
 				nonzero[i] = false;
@@ -1830,7 +1857,7 @@ public class svm {
 						sub_prob.x[ci+k] = x[sj+k];
 						sub_prob.y[ci+k] = -1;
 					}
-				
+
 					if(param.probability == 1)
 					{
 						double[] probAB=new double[2];
@@ -1852,11 +1879,11 @@ public class svm {
 			// build output
 
 			model.nr_class = nr_class;
-		
+
 			model.label = new int[nr_class];
 			for(i=0;i<nr_class;i++)
 				model.label[i] = label[i];
-		
+
 			model.rho = new double[nr_class*(nr_class-1)/2];
 			for(i=0;i<nr_class*(nr_class-1)/2;i++)
 				model.rho[i] = f[i].rho;
@@ -1885,14 +1912,14 @@ public class svm {
 				int nSV = 0;
 				for(int j=0;j<count[i];j++)
 					if(nonzero[start[i]+j])
-					{	
+					{
 						++nSV;
 						++nnz;
 					}
 				model.nSV[i] = nSV;
 				nz_count[i] = nSV;
 			}
-		
+
 			System.out.print("Total nSV = "+nnz+"\n");
 
 			model.l = nnz;
@@ -1922,7 +1949,7 @@ public class svm {
 					int sj = start[j];
 					int ci = count[i];
 					int cj = count[j];
-				
+
 					int q = nz_start[i];
 					int k;
 					for(k=0;k<ci;k++)
@@ -1937,27 +1964,86 @@ public class svm {
 		}
 		return model;
 	}
-
+	
+	// Stratified cross validation
 	public static void svm_cross_validation(svm_problem prob, svm_parameter param, int nr_fold, double[] target)
 	{
 		int i;
-		int[] perm = new int[prob.l];		
-
-		// random shuffle
-		for(i=0;i<prob.l;i++) perm[i]=i;
-		for(i=0;i<prob.l;i++)
+		int[] fold_start = new int[nr_fold+1];
+		int l = prob.l;
+		int[] perm = new int[l];
+		
+		if(param.svm_type == svm_parameter.C_SVC ||
+		   param.svm_type == svm_parameter.NU_SVC)		    
 		{
-			int j = i+(int)(Math.random()*(prob.l-i));
-			do {int _=perm[i]; perm[i]=perm[j]; perm[j]=_;} while(false);
+			int[] tmp_nr_class = new int[1];
+			int[][] tmp_label = new int[1][];
+			int[][] tmp_start = new int[1][];
+			int[][] tmp_count = new int[1][];
+
+			svm_group_classes(prob,tmp_nr_class,tmp_label,tmp_start,tmp_count,perm);
+
+			int nr_class = tmp_nr_class[0];
+			int[] label = tmp_label[0];
+			int[] start = tmp_start[0];
+			int[] count = tmp_count[0]; 		
+
+			// random shuffle and then data grouped by fold using the array perm
+			int[] fold_count = new int[nr_fold];
+			int c;
+			int[] index = new int[l];
+			for(i=0;i<l;i++)
+				index[i]=perm[i];
+			for (c=0; c<nr_class; c++)
+				for(i=0;i<count[c];i++)
+				{
+					int j = i+(int)(Math.random()*(count[c]-i));
+					do {int _=index[start[c]+j]; index[start[c]+j]=index[start[c]+i]; index[start[c]+i]=_;} while(false);
+				}
+			for(i=0;i<nr_fold;i++)
+			{
+				fold_count[i] = 0;
+				for (c=0; c<nr_class;c++)
+					fold_count[i]+=(i+1)*count[c]/nr_fold-i*count[c]/nr_fold;
+			}
+			fold_start[0]=0;
+			for (i=1;i<=nr_fold;i++)
+				fold_start[i] = fold_start[i-1]+fold_count[i-1];
+			for (c=0; c<nr_class;c++)
+				for(i=0;i<nr_fold;i++)
+				{
+					int begin = start[c]+i*count[c]/nr_fold;
+					int end = start[c]+(i+1)*count[c]/nr_fold;
+					for(int j=begin;j<end;j++)
+					{
+						perm[fold_start[i]] = index[j];
+						fold_start[i]++;
+					}
+				}
+			fold_start[0]=0;
+			for (i=1;i<=nr_fold;i++)
+				fold_start[i] = fold_start[i-1]+fold_count[i-1];
 		}
+		else
+		{
+			for(i=0;i<l;i++) perm[i]=i;
+			for(i=0;i<l;i++)
+			{
+				int j = i+(int)(Math.random()*(l-i));
+				do {int _=perm[i]; perm[i]=perm[j]; perm[j]=_;} while(false);
+			}
+			for(i=0;i<=nr_fold;i++)
+				fold_start[i]=i*l/nr_fold;
+		}
+
 		for(i=0;i<nr_fold;i++)
 		{
-			int begin = i*prob.l/nr_fold;
-			int end = (i+1)*prob.l/nr_fold;
+			int begin = fold_start[i];
+			int end = fold_start[i+1];
 			int j,k;
 			svm_problem subprob = new svm_problem();
 
-			subprob.l = prob.l-(end-begin);
+			subprob.l = l-(end-begin);
 			subprob.x = new svm_node[subprob.l][];
 			subprob.y = new double[subprob.l];
 
@@ -1968,14 +2054,14 @@ public class svm {
 				subprob.y[k] = prob.y[perm[j]];
 				++k;
 			}
-			for(j=end;j<prob.l;j++)
+			for(j=end;j<l;j++)
 			{
 				subprob.x[k] = prob.x[perm[j]];
 				subprob.y[k] = prob.y[perm[j]];
 				++k;
 			}
 			svm_model submodel = svm_train(subprob,param);
-			if(param.probability == 1 &&
+			if(param.probability==1 &&
 			   (param.svm_type == svm_parameter.C_SVC ||
 			    param.svm_type == svm_parameter.NU_SVC))
 			{

@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/env python
 
 import os, sys
 import Queue
@@ -6,15 +6,17 @@ import getpass
 import re
 from threading import Thread
 from string import find, split, join, atof
-is_win32 = (sys.platform == 'win32')
 
 # svmtrain and gnuplot executable
 
-svmtrain_exe = "../svm-train"
-gnuplot_exe = "/usr/bin/gnuplot"
-# example for windows
-# svmtrain_exe = r"c:\tmp\libsvm-2.6\windows\svmtrain.exe"
-# gnuplot_exe = r"c:\tmp\gp373w32\pgnuplot.exe"
+is_win32 = (sys.platform == 'win32')
+if not is_win32:
+       svmtrain_exe = "../svm-train"
+       gnuplot_exe = "/usr/bin/gnuplot"
+else:
+       # example for windows
+       svmtrain_exe = r"..\windows\svmtrain.exe"
+       gnuplot_exe = r"c:\tmp\gnuplot\bin\pgnuplot.exe"
 
 # global parameters and their default values
 
@@ -86,8 +88,8 @@ Usage: grid.py [-log2c begin,end,step] [-log2g begin,end,step] [-v fold]
         i = i + 1
 
     pass_through_string = join(pass_through_options," ")
+    assert os.path.exists(svmtrain_exe),"svm-train executable not found"    
     assert os.path.exists(gnuplot_exe),"gnuplot executable not found"
-    assert os.path.exists(svmtrain_exe),"svm-train executable not found"
     gnuplot = os.popen(gnuplot_exe,'w')
 
 
@@ -121,7 +123,7 @@ def redraw (db,tofile=0):
     begin_level = round(max(map(lambda(x):x[2],db))) - 3
     step_size = 0.5
     if tofile:
-        gnuplot.write("set term png transparent small color\n")
+        gnuplot.write("set term png transparent small\n")
         gnuplot.write("set output \"%s\"\n" % png_filename.replace('\\','\\\\'))
         #gnuplot.write("set term postscript color solid\n")
         #gnuplot.write("set output \"%s.ps\"\n" % dataset_title)
@@ -317,7 +319,7 @@ def main():
     done_jobs = {}
     result_file = open(out_filename,'w',0)
     db = []
-    best_rate = 0
+    best_rate = -1
 
     for line in jobs:
         for (c,g) in line:
@@ -327,8 +329,9 @@ def main():
                 result_file.write('%s %s %s\n' %(c1,g1,rate))
                 result_file.flush()
                 print "[%s] %s %s %s" % (worker,c1,g1,rate),
-                if rate > best_rate:
+                if (rate > best_rate) or (rate==best_rate and g1==best_g1 and c1<best_c1):
                     best_rate = rate
+                    best_c1,best_g1=c1,g1
                     best_c = 2.0**c1
                     best_g = 2.0**g1
                 print " (best c=%s, g=%s, rate=%s)" % \

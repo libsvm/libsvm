@@ -36,12 +36,13 @@ The format of training and testing data file is:
 .
 
 <label> is the target value of the training data. For classification,
-it should be an integer which identifies a class (multi-class classification
-is supported). For regression, it's any real number. For one-class SVM,
-it's not used so can be any number. <index> is an integer starting from 1,
-<value> is a real number. The labels in the testing data file are only used to
-calculate accuracy or error. If they are unknown, just fill this column with a
-number.
+it should be an integer which identifies a class (multi-class
+classification is supported). For regression, it's any real
+number. For one-class SVM, it's not used so can be any number. <index>
+is an integer starting from 1, <value> is a real number. The indices
+must be in an ascending order. The labels in the testing data file are
+only used to calculate accuracy or error. If they are unknown, just
+fill this column with a number.
 
 There is a sample data for classification in this package:
 heart_scale.
@@ -63,16 +64,18 @@ svm-toy:
 	This is a simple graphical interface which shows how SVM
 	separate data in a plane. You can click in the window to 
 	draw data points. Use "change" button to choose class 
-	1 or 2, "load" button to load data from a file, "save" button
-	to save data to a file, "run" button to obtain an SVM model,
-	and "clear" button to clear the window.
+	1, 2 or 3 (i.e., up to three classes are supported), "load"
+	button to load data from a file, "save" button to save data to
+	a file, "run" button to obtain an SVM model, and "clear"
+	button to clear the window.
 
 	You can enter options in the bottom of the window, the syntax of
 	options is the same as `svm-train'.
 
-	Note that "load" and "save" consider data in the classification but
-	not the regression case. Each data point has one label (the color)
-	and two attributes (x-axis and y-axis values).
+	Note that "load" and "save" consider data in the
+	classification but not the regression case. Each data point
+	has one label (the color) which must be 1, 2, or 3 and two
+	attributes (x-axis and y-axis values) in [0,1].
 
 	Type `make' in respective directories to build them.
 
@@ -460,7 +463,7 @@ Building Windows Binaries
 Windows binaries are in the directory `windows'. To build them via
 Visual C++, use the following steps:
 
-1. Open a dos command box and change to libsvm directory.  If
+1. Open a dos command box and change to libsvm directory. If
 environment variables of VC++ have not been set, type
 
 "C:\Program Files\Microsoft Visual Studio .NET 2003\Vc7\bin\vcvars32.bat"
