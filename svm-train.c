@@ -10,6 +10,11 @@ void exit_with_help()
 	"Usage: svm-train [options] training_set_file [model_file]\n"
 	"options:\n"
 	"-c cost : set cost C of constraints violation (default 1)\n"
+	"-s svm_type : set type of SVM (default 0)\n"
+	"	0 -- C-SVC\n"
+	"	1 -- nu-SVC\n"
+	"	2 -- one-class SVM\n"
+	"	3 -- C-SVR\n"
 	"-t kernel_type : set type of kernel function (default 2)\n"
 	"	0 -- linear\n"
 	"	1 -- polynomial: (gamma*u'*v + coef0)^degree\n"
@@ -18,8 +23,10 @@ void exit_with_help()
 	"-d degree : set degree in kernel function (default 3)\n"
 	"-g gamma : set gamma in kernel function (default 1/k)\n"
 	"-r coef0 : set coef0 in poly/sigmoid kernel function (default 0)\n"
+	"-n nu : set the parameter nu of nu-SVC and one class SVM (default 0.5)\n"
 	"-m cachesize : set cache memory size in MB (default 40)\n"
 	"-e epsilon : set tolerance of termination criterion (default 0.001)\n"
+	"-p epsilon : set epsilon in epsilon-insensitive loss function (default 0.5)\n"
 	);
 	exit(1);
 }
@@ -56,13 +63,16 @@ void parse_command_line(int argc, char **argv, char *input_file_name, char *mode
 	int i;
 
 	// default values
+	param.svm_type = C_SVC;
 	param.kernel_type = RBF;
 	param.degree = 3;
 	param.gamma = 0;	// 1/k
 	param.coef0 = 0;
+	param.nu = 0.5;
 	param.cache_size = 40;
 	param.C = 1;
 	param.eps = 1e-3;
+	param.p = 0.5;
 
 	// parse options
 	for(i=1;i<argc;i++)
@@ -71,6 +81,9 @@ void parse_command_line(int argc, char **argv, char *input_file_name, char *mode
 		++i;
 		switch(argv[i-1][1])
 		{
+			case 's':
+				param.svm_type = atoi(argv[i]);
+				break;
 			case 't':
 				param.kernel_type = atoi(argv[i]);
 				break;
@@ -83,6 +96,9 @@ void parse_command_line(int argc, char **argv, char *input_file_name, char *mode
 			case 'r':
 				param.coef0 = atof(argv[i]);
 				break;
+			case 'n':
+				param.nu = atof(argv[i]);
+				break;
 			case 'm':
 				param.cache_size = atof(argv[i]);
 				break;
@@ -91,6 +107,9 @@ void parse_command_line(int argc, char **argv, char *input_file_name, char *mode
 				break;
 			case 'e':
 				param.eps = atof(argv[i]);
+				break;
+			case 'p':
+				param.p = atof(argv[i]);
 				break;
 			default:
 				fprintf(stderr,"unknown option\n");
@@ -154,7 +173,7 @@ void read_problem(const char *filename)
 out:
 	rewind(fp);
 
-	prob.y = (signed char *)malloc(sizeof(char)*prob.l);
+	prob.y = (double *)malloc(sizeof(double)*prob.l);
 	prob.x = (struct svm_node **)malloc(sizeof(struct svm_node *)*prob.l);
 	x_space = (struct svm_node *)malloc(sizeof(struct svm_node)*elements);
 
@@ -162,9 +181,9 @@ out:
 	j=0;
 	for(i=0;i<prob.l;i++)
 	{
-		int label;
+		double label;
 		prob.x[i] = &x_space[j];
-		fscanf(fp,"%d",&label);
+		fscanf(fp,"%lf",&label);
 		prob.y[i] = label;
 		while(1)
 		{

@@ -101,13 +101,16 @@ on_button_run_clicked                  (GtkButton       *button,
 	int i,j;	
 
 	// default values
+	param.svm_type = C_SVC;
 	param.kernel_type = RBF;
 	param.degree = 3;
 	param.gamma = 0.5;
 	param.coef0 = 0;
+	param.nu = 0.5;
 	param.cache_size = 40;
 	param.C = 1;
 	param.eps = 1e-3;
+	param.p = 0.5;
 
 	// parse options
 	const char *p = gtk_entry_get_text(GTK_ENTRY(entry_option));
@@ -121,6 +124,9 @@ on_button_run_clicked                  (GtkButton       *button,
 
 		p++;
 		switch (*p++) {
+			case 's':
+				param.svm_type = atoi(p);
+				break;
 			case 't':
 				param.kernel_type = atoi(p);
 				break;
@@ -133,6 +139,9 @@ on_button_run_clicked                  (GtkButton       *button,
 			case 'r':
 				param.coef0 = atof(p);
 				break;
+			case 'n':
+				param.nu = atof(p);
+				break;
 			case 'm':
 				param.cache_size = atof(p);
 				break;
@@ -141,6 +150,9 @@ on_button_run_clicked                  (GtkButton       *button,
 				break;
 			case 'e':
 				param.eps = atof(p);
+				break;
+			case 'p':
+				param.p = atof(p);
 				break;
 		}
 	}
@@ -151,7 +163,7 @@ on_button_run_clicked                  (GtkButton       *button,
 	prob.l = point_list.size();
 	svm_node *x_space = new svm_node[3 * prob.l];
 	prob.x = new svm_node *[prob.l];
-	prob.y = new signed char[prob.l];
+	prob.y = new double[prob.l];
 
 	i = 0;
 	for (list <point>::iterator q = point_list.begin(); q != point_list.end(); q++, i++)
@@ -176,7 +188,8 @@ on_button_run_clicked                  (GtkButton       *button,
 		for (j = 0; j < YLEN; j++) {
 			x[0].value = (double) i / XLEN;
 			x[1].value = (double) j / YLEN;
-			double d = svm_classify(model, x);
+			double d;
+			svm_classify(model, x, 1, &d);
 			GdkColor *color;
 			if (d > 1)
 				color = &colors[2];
@@ -245,12 +258,12 @@ void show_fileselection()
 	gtk_signal_connect_object(
 		GTK_OBJECT(GTK_FILE_SELECTION(fileselection)->ok_button),
 		"clicked", GTK_SIGNAL_FUNC(gtk_widget_destroy),
-		(gpointer) fileselection);
+		(GtkObject *) fileselection);
 	
 	gtk_signal_connect_object (GTK_OBJECT
 		(GTK_FILE_SELECTION(fileselection)->cancel_button),
 		"clicked", GTK_SIGNAL_FUNC(gtk_widget_destroy),
-		(gpointer) fileselection);
+		(GtkObject *) fileselection);
 
 	gtk_widget_show(fileselection);
 }

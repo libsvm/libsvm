@@ -148,13 +148,16 @@ void button_run_clicked()
 	int i,j;
 	
 	// default values
+	param.svm_type = C_SVC;
 	param.kernel_type = RBF;
 	param.degree = 3;
 	param.gamma = 0.5;
 	param.coef0 = 0;
+	param.nu = 0.5;
 	param.cache_size = 40;
 	param.C = 1;
 	param.eps = 1e-3;
+	param.p = 0.5;
 
 	// parse options
 	char str[1024];
@@ -170,6 +173,9 @@ void button_run_clicked()
 
 		p++;
 		switch (*p++) {
+			case 's':
+				param.svm_type = atoi(p);
+				break;
 			case 't':
 				param.kernel_type = atoi(p);
 				break;
@@ -182,6 +188,9 @@ void button_run_clicked()
 			case 'r':
 				param.coef0 = atof(p);
 				break;
+			case 'n':
+				param.nu = atof(p);
+				break;
 			case 'm':
 				param.cache_size = atof(p);
 				break;
@@ -190,6 +199,9 @@ void button_run_clicked()
 				break;
 			case 'e':
 				param.eps = atof(p);
+				break;
+			case 'p':
+				param.p = atof(p);
 				break;
 		}
 	}
@@ -200,7 +212,7 @@ void button_run_clicked()
 	prob.l = point_list.size();
 	svm_node *x_space = new svm_node[3 * prob.l];
 	prob.x = new svm_node *[prob.l];
-	prob.y = new signed char[prob.l];
+	prob.y = new double[prob.l];
 
 	i = 0;
 	for (list<point>::iterator q = point_list.begin(); q != point_list.end(); q++, i++)
@@ -225,7 +237,8 @@ void button_run_clicked()
 		for (j = 0; j < YLEN; j++) {
 			x[0].value = (double) i / XLEN;
 			x[1].value = (double) j / YLEN;
-			double d = svm_classify(model, x);
+			double d;
+			svm_classify(model, x, 1, &d);
 			COLORREF color;
 			if (d > 1)
 				color = RGB(0, 150, 150);

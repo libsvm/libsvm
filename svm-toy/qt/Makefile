@@ -1,11 +1,11 @@
 CXXC = g++
 CFLAGS = -Wall -O3 -g
-#BIN = $(QTDIR)/bin
-#INCLUDE = $(QTDIR)/include
-#LIB = $(QTDIR)/lib
-BIN = /usr/bin
-INCLUDE = /usr/include/qt
-LIB = /usr/lib/qt
+BIN = $(QTDIR)/bin
+INCLUDE = $(QTDIR)/include
+LIB = $(QTDIR)/lib
+#BIN = /usr/bin
+#INCLUDE = /usr/include/qt
+#LIB = /usr/lib/qt
 
 svm-toy: svm-toy.cpp svm-toy.moc ../../svm.o
 	$(CXXC) -I$(INCLUDE) $(CFLAGS) svm-toy.cpp ../../svm.o -o svm-toy -L$(LIB) -lqt

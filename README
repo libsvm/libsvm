@@ -1,5 +1,6 @@
 Libsvm is a simple, easy-to-use, and moderately efficient software
-for SVM classification. This document explains the use of libsvm.
+for SVM classification, regression, and some variants: nu-SVM and
+one-class SVM. This document explains the use of libsvm.
 
 Libsvm is available at 
 http://www.csie.ntu.edu.tw/~cjlin/libsvm
@@ -21,13 +22,18 @@ The format of training and testing data file is:
 .
 .
 
-<label> is +1 or -1, <index> is an integer starting from 1, <value> is
-a real number. The labels in the testing data file are only used to
-calculate accuracy. If they are unknown, just fill this column with +1.
+<label> is the target value of the training data. For two-class
+classification, it must be +1 or -1. For regression, it's any real
+number.  For one-class SVM, it's not used so can be any number.
+<index> is an integer starting from 1, <value> is a real number.
+The labels in the testing data file are only used to calculate accuracy.
+If they are unknown, just fill this column with a number.
 
-There is one sample training data file (heart_scale) in this package.
+There is a sample training data for classification in this package:
+heart_scale.
+
 Type `./svm-train heart_scale', and the program will read the training
-data file and output the model file `heart_scale.model'. Then you can
+data and output the model file `heart_scale.model'. Then you can
 type `./svm-classify heart_scale heart_scale.model output' to see the
 rate of classification on training data. The `output' file contains
 the output values of the decision function.
@@ -43,13 +49,10 @@ svm-toy:
 
 	This is a simple graphical interface which shows how SVM
 	separate data in a plane. You can click in the window to 
-draw data points. Use "change" button to choose class 
-1 or 2, "load" button to load data from a file, "run" button 
-to obtain an SVM model, and "clear" button to clear the window. 
-Note that svm-toy confines data in the [0,1]x[0.1] region so 
-if data are loaded from a file, you have to scale your data 
-into this region.
-
+	draw data points. Use "change" button to choose class 
+	1 or 2, "load" button to load data from a file, "save" button
+	to save data to a file, "run" button to obtain an SVM model,
+	and "clear" button to clear the window.
 
 	You can enter options in the bottom of the window, the syntax of
 	options is the same as `svm-train'.
@@ -71,16 +74,40 @@ into this region.
 Usage: svm-train [options] training_set_file [model_file]
 options:
 -c cost : set cost C of constraints violation (default 1)
+-s svm_type : set type of SVM (default 0)
+       0 -- C-SVC
+       1 -- nu-SVC
+       2 -- one-class SVM
+       3 -- C-SVR
 -t kernel_type : set type of kernel function (default 2)
-        0 -- linear
-        1 -- polynomial: (gamma*u'*v + coef0)^degree
-        2 -- radial basis function: exp(-gamma*|u-v|^2)
-        3 -- sigmoid: tanh(gamma*u'*v + coef0)
+       0 -- linear
+       1 -- polynomial: (gamma*u'*v + coef0)^degree
+       2 -- radial basis function: exp(-gamma*|u-v|^2)
+       3 -- sigmoid: tanh(gamma*u'*v + coef0)
 -d degree : set degree in kernel function (default 3)
 -g gamma : set gamma in kernel function (default 1/k)
 -r coef0 : set coef0 in poly/sigmoid kernel function (default 0)
+-n nu : set the parameter nu of nu-SVC and one class SVM (default 0.5)
 -m cachesize : set cache memory size in MB (default 40)
 -e epsilon : set tolerance of termination criterion (default 0.001)
+-p epsilon : set epsilon in epsilon-insensitive loss function (default 0.5)
+
+Examples
+=============
+
+> svm-train -s 0 -c 1000 -t 1 -g 1 -r 1 -d 3 data_file
+
+Classify a binary data with polynomial kernel (u'v+1)^3 and C = 1000
+
+> svm-train -s 1 -n 0.1 -t 2 -g 0.5 -e 0.00001 data_file
+
+Classify a binary data by nu-SVM (nu = 0.1) with RBF kernel
+exp(-0.5|u-v|^2) and stopping tolerance 0.00001
+
+> svm-train -s 3 -p 0.1 -t 0 -c 10 data_file
+
+Solve SVM regression with linear kernel u'v and C=10, and epsilon = 0.1
+in the loss function.
 
 Library Usage
 =============
@@ -106,14 +133,14 @@ to classify new data.
 	struct svm_problem
 	{
 		int l;
-		signed char *y;
+		double *y;
 		struct svm_node **x;
 	};
  
     where `l' is the number of traing data, and `y' is an array containing
-    their labels (+1/-1). `x' is an array of pointers, each of which
-    points to a sparse representation (array of svm_node) of one
-    training vector.
+    their target values. (+1/-1 in classification, real number in regression)
+    `x' is an array of pointers, each of which points to a sparse
+    representation (array of svm_node) of one training vector.
 
     For example, if we have the following training data:
 
@@ -151,17 +178,27 @@ to classify new data.
 
 	struct svm_parameter
 	{
+		int svm_type;
 		int kernel_type;
-		double degree;  // for poly
-		double gamma;   // for poly/rbf/sigmoid
-		double coef0;   // for poly/sigmoid
+		double degree;	// for poly
+		double gamma;	// for poly/rbf/sigmoid
+		double coef0;	// for poly/sigmoid
 
 		// these are for training only
 		double cache_size; // in MB
-		double C;
-		double eps;
+		double eps;	// stopping criteria
+		double C;	// for C_SVC and C_SVR
+		double nu;	// for NU_SVC and ONE_CLASS
+		double p;	// for C_SVR
 	};
-  
+
+    svm_type can be one of C_SVC, NU_SVC, ONE_CLASS, C_SVR.
+
+    C_SVC:	C-SVM classification
+    NU_SVC:	nu-SVM classification
+    ONE_CLASS:	one-class-SVM
+    C_SVR:	C-SVM regression
+
     kernel_type can be one of LINEAR, POLY, RBF, SIGMOID.
 
     LINEAR:	u'*v
@@ -171,7 +208,10 @@ to classify new data.
 
     cache_size is the size of the kernel cache, specified in megabytes.
     C is the cost of constraints violation. (we usually use 1 to 1000)
-    eps is the stopping criterion. (we usually use 0.001)
+    eps is the stopping criterion. (we usually use 0.00001 in nu-SVM,
+    0.001 in others). nu is the parameter in nu-SVM and one-class-SVM.
+    p is the epsilon in epsilon-insensitive loss function of C-SVM
+    regression.
 
     *NOTE* Because svm_model contains pointers to svm_problem, you can
     not free the memory used by svm_problem if you are still using the
@@ -188,12 +228,22 @@ to classify new data.
     This function returns a pointer to the model read from the file,
     or a null pointer if the model could not be loaded.
 
-- Function: double svm_classify(const struct svm_model *model,
-				const struct svm_node *x);
+- Function: int svm_classify(const struct svm_model *model,
+                             const struct svm_node *x,
+                             double label, double *decision_value);
 
-    This function classifies a test vector x using a model;
-    returns the value of the decision function. (positive if classified as
-    class +1, negative as class -1) 
+    This function does classification or regression on a test vector x
+    given a model.
+
+    For a classification model, the value of decision function for x
+    is returned in decision_value. For a regression model, the function
+    value of x calculated using the model is returned in decision_value.
+    
+    The return value of svm_classify is 1 if the given label and
+    decision_value are of the same sign, 0 otherwise.
+
+    For one-class SVM, the return value of svm_classify is 1 if the value
+    of decision function is positive, 0 otherwise.
 
 - Function: void svm_destroy_model(struct svm_model *model);
 
@@ -201,6 +251,10 @@ to classify new data.
 
 ADDITIONAL INFORMATION
 ============
+
+Chih-Chung Chang and Chih-Jen Lin
+LIBSVM 2.0: Solving Different Support Vector Formulations.
+http://www.csie.ntu.edu.tw/~cjlin/papers/libsvm2.ps.gz
 
 Chih-Chung Chang and Chih-Jen Lin
 Libsvm: Introduction and Benchmarks

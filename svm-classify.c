@@ -27,11 +27,11 @@ void classify(FILE *input, FILE *output)
 
 	while(fgets(line,sizeof(line),input)!=NULL)
 	{
-		int i = 0, label, y;
-		double v;
+		int i = 0;
+		double label,v;
 		const char *p = line;
 
-		if(sscanf(p,"%d",&label)!=1) break;
+		if(sscanf(p,"%lf",&label)!=1) break;
 
 		SKIP_CLASS
 
@@ -42,11 +42,8 @@ void classify(FILE *input, FILE *output)
 		}
 
 		x[i].index = -1;
-		v = svm_classify(model,x);
-		if(v >= 0) y = 1;
-		else y = -1;
-
-		if(y == label) ++correct;
+		if(svm_classify(model,x,label,&v))
+			++correct;
 		++total;
 
 		fprintf(output,"%g\n",v);
