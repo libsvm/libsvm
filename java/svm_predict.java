@@ -1,7 +1,7 @@
 import java.io.*;
 import java.util.*;
 
-class svm_classify {
+class svm_predict {
 	private static double atof(String s)
 	{
 		return Double.valueOf(s).doubleValue();
@@ -16,6 +16,7 @@ class svm_classify {
 	{
 		int correct = 0;
 		int total = 0;
+		double error = 0;
 
 		while(true)
 		{
@@ -33,21 +34,24 @@ class svm_classify {
 				x[j].index = atoi(st.nextToken());
 				x[j].value = atof(st.nextToken());
 			}
-			double decision_value = svm.svm_classify(model,x);
-			output.writeBytes(decision_value+"\n");
-			if(decision_value*label > 0)
+			double v = svm.svm_predict(model,x);
+			if(v == label)
 				++correct;
+			error += (v-label)*(v-label);
 			++total;
+
+			output.writeBytes(v+"\n");
 		}
-		System.out.print("correct/total = "+correct+"/"+total
-				+" ("+(double)correct/total*100+"%)\n");
+		System.out.print("Accuracy = "+(double)correct/total*100+
+				 "% ("+correct+"/"+total+") (classification)\n");
+		System.out.print("Mean squared error = "+error/total+" (regression)\n");
 	}
 
 	public static void main(String argv[]) throws IOException
 	{
 		if(argv.length != 3)
 		{
-			System.err.print("usage: svm-classify test_file model_file output_file\n");
+			System.err.print("usage: svm-predict test_file model_file output_file\n");
 			System.exit(1);
 		}
 

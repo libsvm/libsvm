@@ -20,12 +20,12 @@ public class svm_toy extends Applet {
 	final static Color colors[] =
 	{
 	  new Color(0,0,0),
+	  new Color(0,120,120),
+	  new Color(120,120,0),
+	  new Color(120,0,120),
 	  new Color(0,200,200),
-	  new Color(0,150,150),
-	  new Color(0,100,100),
-	  new Color(100,100,0),
-	  new Color(150,150,0),
-	  new Color(200,200,0)
+	  new Color(200,200,0),
+	  new Color(200,0,200)
 	};
 
 	class point {
@@ -108,7 +108,7 @@ public class svm_toy extends Applet {
 
 	void draw_point(point p)
 	{
-		Color c = ((p.value == 1)?colors[1]:colors[6]);
+		Color c = colors[p.value+3];
 
 		Graphics window_gc = getGraphics();
 		buffer_gc.setColor(c);
@@ -137,7 +137,8 @@ public class svm_toy extends Applet {
 
 	void button_change_clicked()
 	{
-		current_value = (byte)-current_value;
+		++current_value;
+		if(current_value > 3) current_value = 1;
 	}
 
 	private static double atof(String s)
@@ -225,7 +226,8 @@ public class svm_toy extends Applet {
 		prob.l = point_list.size();
 		prob.y = new double[prob.l];
 
-		if(param.svm_type == svm_parameter.C_SVR)
+		if(param.svm_type == svm_parameter.EPSILON_SVR ||
+		   param.svm_type == svm_parameter.NU_SVR)
 		{
 			if(param.gamma == 0) param.gamma = 1;
 			prob.x = new svm_node[prob.l][1];
@@ -249,7 +251,7 @@ public class svm_toy extends Applet {
 			for (int i = 0; i < XLEN; i++)
 			{
 				x[0].value = (double) i / XLEN;
-				j[i] = (int)(YLEN*svm.svm_classify(model, x));
+				j[i] = (int)(YLEN*svm.svm_predict(model, x));
 			}
 			
 			buffer_gc.setColor(colors[0]);
@@ -265,20 +267,23 @@ public class svm_toy extends Applet {
 				window_gc.setColor(colors[0]);
 				window_gc.drawLine(i,0,i,YLEN-1);
 
-				buffer_gc.setColor(colors[6]);
-				window_gc.setColor(colors[6]);
+				buffer_gc.setColor(colors[5]);
+				window_gc.setColor(colors[5]);
 				buffer_gc.drawLine(i-1,j[i-1],i,j[i]);
 				window_gc.drawLine(i-1,j[i-1],i,j[i]);
 
-				buffer_gc.setColor(colors[4]);
-				window_gc.setColor(colors[4]);
-				buffer_gc.drawLine(i-1,j[i-1]+p,i,j[i]+p);
-				window_gc.drawLine(i-1,j[i-1]+p,i,j[i]+p);
+				if(param.svm_type == svm_parameter.EPSILON_SVR)
+				{
+					buffer_gc.setColor(colors[2]);
+					window_gc.setColor(colors[2]);
+					buffer_gc.drawLine(i-1,j[i-1]+p,i,j[i]+p);
+					window_gc.drawLine(i-1,j[i-1]+p,i,j[i]+p);
 
-				buffer_gc.setColor(colors[4]);
-				window_gc.setColor(colors[4]);
-				buffer_gc.drawLine(i-1,j[i-1]-p,i,j[i]-p);
-				window_gc.drawLine(i-1,j[i-1]-p,i,j[i]-p);
+					buffer_gc.setColor(colors[2]);
+					window_gc.setColor(colors[2]);
+					buffer_gc.drawLine(i-1,j[i-1]-p,i,j[i]-p);
+					window_gc.drawLine(i-1,j[i-1]-p,i,j[i]-p);
+				}
 			}
 		}
 		else
@@ -310,20 +315,9 @@ public class svm_toy extends Applet {
 				for (int j = 0; j < YLEN ; j++) {
 					x[0].value = (double) i / XLEN;
 					x[1].value = (double) j / YLEN;
-					double d;
-					d = svm.svm_classify(model, x);
-					Color color;
-					if (d > 1)
-						color = colors[2];
-					else if (d > 0)
-						color = colors[3];
-					else if (d > -1)
-						color = colors[4];
-					else
-						color = colors[5];
-
-					buffer_gc.setColor(color);
-					window_gc.setColor(color);
+					double d = svm.svm_predict(model, x);
+					buffer_gc.setColor(colors[(int)d]);
+					window_gc.setColor(colors[(int)d]);
 					buffer_gc.drawLine(i,j,i,j);
 					window_gc.drawLine(i,j,i,j);
 			}

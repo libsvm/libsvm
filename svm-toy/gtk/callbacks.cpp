@@ -11,13 +11,13 @@
 
 GdkColor colors[] = 
 {
-	{0,0,0},
+	{0,0,0,0},
+	{0,0,120<<8,120<<8},
+	{0,120<<8,120<<8,0},
+	{0,120<<8,0,120<<8},
 	{0,0,200<<8,200<<8},
-	{0,0,150<<8,150<<8},
-	{0,0,100<<8,100<<8},
-	{0,100<<8,100<<8,0},
-	{0,150<<8,150<<8,0},
 	{0,200<<8,200<<8,0},
+	{0,200<<8,0,200<<8},
 };
 
 GdkGC *gc;
@@ -64,7 +64,7 @@ void redraw_area(GtkWidget* widget, int x, int y, int w, int h)
 
 void draw_point(const point& p)
 {
-	gdk_gc_set_foreground(gc,(p.value==1)?(&colors[1]):(&colors[6]));
+	gdk_gc_set_foreground(gc,&colors[p.value+3]);
 	gdk_draw_rectangle(pixmap, gc, TRUE,int(p.x*XLEN),int(p.y*YLEN),4,4);
 	gdk_draw_rectangle(draw_main->window, gc, TRUE,int(p.x*XLEN),int(p.y*YLEN),4,4);
 }
@@ -87,7 +87,8 @@ void
 on_button_change_clicked               (GtkButton       *button,
                                         gpointer         user_data)
 {
-	current_value = -current_value;
+	++current_value;
+	if(current_value > 3) current_value = 1;
 }
 
 void
@@ -167,7 +168,8 @@ on_button_run_clicked                  (GtkButton       *button,
 	prob.l = point_list.size();
 	prob.y = new double[prob.l];
 
-	if(param.svm_type == C_SVR)
+	if(param.svm_type == EPSILON_SVR ||
+	   param.svm_type == NU_SVR)
 	{
 		if(param.gamma == 0) param.gamma = 1;
 		svm_node *x_space = new svm_node[2 * prob.l];
@@ -193,7 +195,7 @@ on_button_run_clicked                  (GtkButton       *button,
 		for (i = 0; i < XLEN; i++) 
 		{
 			x[0].value = (double) i / XLEN;
-			j[i] = (int)(YLEN*svm_classify(model, x));
+			j[i] = (int)(YLEN*svm_predict(model, x));
 		}
 
 		gdk_gc_set_foreground(gc,&colors[0]);
@@ -207,17 +209,20 @@ on_button_run_clicked                  (GtkButton       *button,
 			gdk_draw_line(pixmap,gc,i,0,i,YLEN-1);
 			gdk_draw_line(draw_main->window,gc,i,0,i,YLEN-1);
 			
-			gdk_gc_set_foreground(gc,&colors[6]);
+			gdk_gc_set_foreground(gc,&colors[5]);
 			gdk_draw_line(pixmap,gc,i-1,j[i-1],i,j[i]);
 			gdk_draw_line(draw_main->window,gc,i-1,j[i-1],i,j[i]);
 			
-			gdk_gc_set_foreground(gc,&colors[4]);
-			gdk_draw_line(pixmap,gc,i-1,j[i-1]+p,i,j[i]+p);
-			gdk_draw_line(draw_main->window,gc,i-1,j[i-1]+p,i,j[i]+p);
+			if(param.svm_type == EPSILON_SVR)
+			{
+				gdk_gc_set_foreground(gc,&colors[2]);
+				gdk_draw_line(pixmap,gc,i-1,j[i-1]+p,i,j[i]+p);
+				gdk_draw_line(draw_main->window,gc,i-1,j[i-1]+p,i,j[i]+p);
 			
-			gdk_gc_set_foreground(gc,&colors[4]);
-			gdk_draw_line(pixmap,gc,i-1,j[i-1]-p,i,j[i]-p);
-			gdk_draw_line(draw_main->window,gc,i-1,j[i-1]-p,i,j[i]-p);
+				gdk_gc_set_foreground(gc,&colors[2]);
+				gdk_draw_line(pixmap,gc,i-1,j[i-1]-p,i,j[i]-p);
+				gdk_draw_line(draw_main->window,gc,i-1,j[i-1]-p,i,j[i]-p);
+			}
 		}
 
 		svm_destroy_model(model);
@@ -255,19 +260,8 @@ on_button_run_clicked                  (GtkButton       *button,
 			for (j = 0; j < YLEN; j++) {
 				x[0].value = (double) i / XLEN;
 				x[1].value = (double) j / YLEN;
-				double d;
-				d = svm_classify(model, x);
-				GdkColor *color;
-				if (d > 1)
-					color = &colors[2];
-				else if (d > 0)
-					color = &colors[3];
-				else if (d > -1)
-					color = &colors[4];
-				else
-					color = &colors[5];
-
-				gdk_gc_set_foreground(gc,color);
+				double d = svm_predict(model, x);
+				gdk_gc_set_foreground(gc,&colors[(int)d]);
 				gdk_draw_point(pixmap,gc,i,j);
 				gdk_draw_point(draw_main->window,gc,i,j);
 			}

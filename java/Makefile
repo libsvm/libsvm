@@ -1,5 +1,5 @@
 FILES =	svm.class svm_model.class svm_node.class svm_parameter.class \
-	svm_problem.class svm_train.class svm_classify.class svm_toy.class
+	svm_problem.class svm_train.class svm_predict.class svm_toy.class
 
 #JAVAC = jikes
 #JAVAC_FLAGS = -classpath /opt/IBMJava2-13/jre/lib/rt.jar

@@ -6,7 +6,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <ctype.h>
-#include <unistd.h>
 
 #define MAX_LINE_LEN 100000
 
@@ -26,32 +25,33 @@ int main(int argc,char **argv)
 	int i,index;
 	FILE *fp;
 
-	while(1)
+	for(i=1;i<argc;i++)
 	{
-		int c = getopt(argc,argv,"l:u:");
-		if(c == EOF) break;
-		switch(c)
+		if(argv[i][0] != '-') break;
+		++i;
+		switch(argv[i-1][1])
 		{
-			case 'l': lower = atof(optarg); break;
-			case 'u': upper = atof(optarg); break;
-			case '?':
+			case 'l': lower = atof(argv[i]); break;
+			case 'u': upper = atof(argv[i]); break;
+			default:
+				fprintf(stderr,"unknown option\n");
 				exit(1);
 		}
 	}
-	
+
 	if(!(upper > lower))
 	{
 		fprintf(stderr,"inconsistent lower/upper specification\n");
 		exit(1);
 	}
 	
-	if(argc != optind+1) 
+	if(argc != i+1) 
 	{
 		fprintf(stderr,"usage: %s [-l lower] [-u upper] filename\n",argv[0]);
 		exit(1);
 	}
 
-	fp=fopen(argv[optind],"r");
+	fp=fopen(argv[i],"r");
 	
 	if(fp==NULL)
 	{

@@ -16,12 +16,12 @@
 QRgb colors[] =
 {
 	qRgb(0,0,0),
+	qRgb(0,120,120),
+	qRgb(120,120,0),
+	qRgb(120,0,120),
 	qRgb(0,200,200),
-	qRgb(0,150,150),
-	qRgb(0,100,100),
-	qRgb(100,100,0),
-	qRgb(150,150,0),
-	qRgb(200,200,0)
+	qRgb(200,200,0),
+	qRgb(200,0,200)
 };
 
 class SvmToyWindow : public QWidget
@@ -40,6 +40,7 @@ private:
 	QPixmap buffer;
 	QPixmap icon1;
 	QPixmap icon2;
+	QPixmap icon3;
 	QPushButton button_change_icon;
 	QPushButton button_run;
 	QPushButton button_clear;
@@ -57,7 +58,8 @@ private:
 	const QPixmap& choose_icon(int v)
 	{
 		if(v==1) return icon1;
-		else return icon2;
+		else if(v==2) return icon2;
+		else return icon3;
 	}
 	void clear_all()
 	{
@@ -79,7 +81,8 @@ private:
 private slots: 
 	void button_change_icon_clicked()
 	{
-		current_value = -current_value;
+		++current_value;
+		if(current_value > 3) current_value = 1;
 		button_change_icon.setPixmap(choose_icon(current_value));
 	}
 	void button_run_clicked()
@@ -157,7 +160,8 @@ private slots:
 		prob.l = point_list.size();
 		prob.y = new double[prob.l];
 
-		if(param.svm_type == C_SVR)
+		if(param.svm_type == EPSILON_SVR ||
+		   param.svm_type == NU_SVR)
 		{
 			if(param.gamma == 0) param.gamma = 1;
 			svm_node *x_space = new svm_node[2 * prob.l];
@@ -183,7 +187,7 @@ private slots:
 			for (i = 0; i < XLEN; i++)
 			{
 				x[0].value = (double) i / XLEN;
-				j[i] = (int)(YLEN*svm_classify(model, x));
+				j[i] = (int)(YLEN*svm_predict(model, x));
 			}
 			
 			buffer_painter.setPen(colors[0]);
@@ -199,20 +203,23 @@ private slots:
 				window_painter.setPen(colors[0]);
 				window_painter.drawLine(i,0,i,YLEN-1);
 			
-				buffer_painter.setPen(colors[6]);
+				buffer_painter.setPen(colors[5]);
 				buffer_painter.drawLine(i-1,j[i-1],i,j[i]);
-				window_painter.setPen(colors[6]);
+				window_painter.setPen(colors[5]);
 				window_painter.drawLine(i-1,j[i-1],i,j[i]);
-			
-				buffer_painter.setPen(colors[4]);
-				buffer_painter.drawLine(i-1,j[i-1]+p,i,j[i]+p);
-				window_painter.setPen(colors[4]);
-				window_painter.drawLine(i-1,j[i-1]+p,i,j[i]+p);
+				
+				if(param.svm_type == EPSILON_SVR)
+				{
+					buffer_painter.setPen(colors[2]);
+					buffer_painter.drawLine(i-1,j[i-1]+p,i,j[i]+p);
+					window_painter.setPen(colors[2]);
+					window_painter.drawLine(i-1,j[i-1]+p,i,j[i]+p);
 
-				buffer_painter.setPen(colors[4]);
-				buffer_painter.drawLine(i-1,j[i-1]-p,i,j[i]-p);
-				window_painter.setPen(colors[4]);
-				window_painter.drawLine(i-1,j[i-1]-p,i,j[i]-p);
+					buffer_painter.setPen(colors[2]);
+					buffer_painter.drawLine(i-1,j[i-1]-p,i,j[i]-p);
+					window_painter.setPen(colors[2]);
+					window_painter.drawLine(i-1,j[i-1]-p,i,j[i]-p);
+				}
 			}
 
 			svm_destroy_model(model);
@@ -250,20 +257,9 @@ private slots:
 				for (j = 0; j < YLEN ; j++) {
 					x[0].value = (double) i / XLEN;
 					x[1].value = (double) j / YLEN;
-					double d;
-					d = svm_classify(model, x);
-					QRgb color;
-					if (d > 1)
-						color = colors[2];
-					else if (d > 0)
-						color = colors[3];
-					else if (d > -1)
-						color = colors[4];
-					else
-						color = colors[5];
-
-					buffer_painter.setPen(color);
-					window_painter.setPen(color);
+					double d = svm_predict(model, x);
+					buffer_painter.setPen(colors[(int)d]);
+					window_painter.setPen(colors[(int)d]);
 					buffer_painter.drawPoint(i,j);
 					window_painter.drawPoint(i,j);
 			}
@@ -355,13 +351,18 @@ SvmToyWindow::SvmToyWindow()
   
 	icon1.resize(4,4);
 	icon2.resize(4,4);
+	icon3.resize(4,4);
 	
 	QPainter painter;
 	painter.begin(&icon1);
-	painter.fillRect(0,0,4,4,QBrush(colors[1]));
+	painter.fillRect(0,0,4,4,QBrush(colors[4]));
 	painter.end();
 
 	painter.begin(&icon2);
+	painter.fillRect(0,0,4,4,QBrush(colors[5]));
+	painter.end();
+
+	painter.begin(&icon3);
 	painter.fillRect(0,0,4,4,QBrush(colors[6]));
 	painter.end();
 

@@ -21,19 +21,19 @@ using namespace std;
 COLORREF colors[] =
 {
 	RGB(0,0,0),
+	RGB(0,120,120),
+	RGB(120,120,0),
+	RGB(120,0,120),
 	RGB(0,200,200),
-	RGB(0,150,150),
-	RGB(0,100,100),
-	RGB(100,100,0),
-	RGB(150,150,0),
-	RGB(200,200,0)
+	RGB(200,200,0),
+	RGB(200,0,200)
 };
 
 HWND main_window;
 HBITMAP buffer;
 HDC window_dc;
 HDC buffer_dc;
-HBRUSH brush1, brush2;
+HBRUSH brush1, brush2, brush3;
 HWND edit;
 
 enum {
@@ -104,8 +104,9 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance,
 
 	Edit_SetText(edit,DEFAULT_PARAM);
 
-	brush1 = CreateSolidBrush(colors[1]);
-	brush2 = CreateSolidBrush(colors[6]);
+	brush1 = CreateSolidBrush(colors[4]);
+	brush2 = CreateSolidBrush(colors[5]);
+	brush3 = CreateSolidBrush(colors[6]);
 
 	window_dc = GetDC(main_window);
 	buffer = CreateCompatibleBitmap(window_dc, XLEN, YLEN);
@@ -142,6 +143,13 @@ void clear_all()
 	InvalidateRect(main_window, 0, 0);
 }
 
+void choose_brush(int v)
+{
+	if(v==1) return brush1;
+	else if(v==2) return brush2;
+	else return brush3;
+}
+
 void draw_point(const point & p)
 {
 	RECT rect;
@@ -149,8 +157,8 @@ void draw_point(const point & p)
 	rect.top = int(p.y*YLEN);
 	rect.right = int(p.x*XLEN) + 3;
 	rect.bottom = int(p.y*YLEN) + 3;
-	FillRect(window_dc, &rect, (p.value == 1) ? brush1 : brush2);
-	FillRect(buffer_dc, &rect, (p.value == 1) ? brush1 : brush2);
+	FillRect(window_dc, &rect, choose_brush(p.value));
+	FillRect(buffer_dc, &rect, choose_brush(p.value));
 }
 
 void draw_all_points()
@@ -236,7 +244,8 @@ void button_run_clicked()
 	prob.l = point_list.size();
 	prob.y = new double[prob.l];
 
-	if(param.svm_type == C_SVR)
+	if(param.svm_type == EPSILON_SVR ||
+	   param.svm_type == NU_SVR)
 	{
 		if(param.gamma == 0) param.gamma = 1;
 		svm_node *x_space = new svm_node[2 * prob.l];
@@ -262,7 +271,7 @@ void button_run_clicked()
 		for (i = 0; i < XLEN; i++)
 		{
 			x[0].value = (double) i / XLEN;
-			j[i] = (int)(YLEN*svm_classify(model, x));
+			j[i] = (int)(YLEN*svm_predict(model, x));
 		}
 		
 		DrawLine(buffer_dc,0,0,0,YLEN,colors[0]);
@@ -274,14 +283,17 @@ void button_run_clicked()
 			DrawLine(buffer_dc,i,0,i,YLEN,colors[0]);
 			DrawLine(window_dc,i,0,i,YLEN,colors[0]);
 			
-			DrawLine(buffer_dc,i-1,j[i-1],i,j[i],colors[6]);
-			DrawLine(window_dc,i-1,j[i-1],i,j[i],colors[6]);
-			
-			DrawLine(buffer_dc,i-1,j[i-1]+p,i,j[i]+p,colors[4]);
-			DrawLine(window_dc,i-1,j[i-1]+p,i,j[i]+p,colors[4]);
+			DrawLine(buffer_dc,i-1,j[i-1],i,j[i],colors[5]);
+			DrawLine(window_dc,i-1,j[i-1],i,j[i],colors[5]);
 
-			DrawLine(buffer_dc,i-1,j[i-1]-p,i,j[i]-p,colors[4]);
-			DrawLine(window_dc,i-1,j[i-1]-p,i,j[i]-p,colors[4]);
+			if(param.svm_type == EPSILON_SVR)
+			{			
+				DrawLine(buffer_dc,i-1,j[i-1]+p,i,j[i]+p,colors[2]);
+				DrawLine(window_dc,i-1,j[i-1]+p,i,j[i]+p,colors[2]);
+
+				DrawLine(buffer_dc,i-1,j[i-1]-p,i,j[i]-p,colors[2]);
+				DrawLine(window_dc,i-1,j[i-1]-p,i,j[i]-p,colors[2]);
+			}
 		}
 		
 		svm_destroy_model(model);
@@ -319,19 +331,9 @@ void button_run_clicked()
 			for (j = 0; j < YLEN; j++) {
 				x[0].value = (double) i / XLEN;
 				x[1].value = (double) j / YLEN;
-				double d;
-				d = svm_classify(model, x);
-				COLORREF color;
-				if (d > 1)
-					color = colors[2];
-				else if (d > 0)
-					color = colors[3];
-				else if (d > -1)
-					color = colors[4];
-				else
-					color = colors[5];
-				SetPixel(window_dc, i, j, color);
-				SetPixel(buffer_dc, i, j, color);
+				double d = svm_predict(model, x);
+				SetPixel(window_dc, i, j, colors[(int)d]);
+				SetPixel(buffer_dc, i, j, colors[(int)d]);
 			}
 
 		svm_destroy_model(model);
@@ -369,7 +371,8 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT iMsg, WPARAM wParam, LPARAM lParam)
 			int id = LOWORD(wParam);
 			switch (id) {
 			case ID_BUTTON_CHANGE:
-				current_value = -current_value;
+				++current_value;
+				if(current_value > 3) current_value = 1;
 				break;
 			case ID_BUTTON_RUN:
 				button_run_clicked();

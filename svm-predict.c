@@ -10,10 +10,11 @@ struct svm_node x[MAX_NR_ATTR];
 
 struct svm_model* model;
 
-void classify(FILE *input, FILE *output)
+void predict(FILE *input, FILE *output)
 {
 	int correct = 0;
 	int total = 0;
+	double error = 0;
 	
 #define SKIP_CLASS\
 	while(isspace(*p)) ++p;\
@@ -42,16 +43,17 @@ void classify(FILE *input, FILE *output)
 		}
 
 		x[i].index = -1;
-		v = svm_classify(model,x);
-		if(v*label > 0)
+		v = svm_predict(model,x);
+		if(v == label)
 			++correct;
+		error += (v-label)*(v-label);
 		++total;
 
 		fprintf(output,"%g\n",v);
 	}
-
-	printf("correct/total = %d/%d (%g%%)\n",correct,total,
-					       (double)correct/total*100);
+	printf("Accuracy = %g%% (%d/%d) (classification)\n",
+		(double)correct/total*100,correct,total);
+	printf("Mean squared error = %g (regression)\n",error/total);
 }
 
 int main(int argc, char **argv)
@@ -60,7 +62,7 @@ int main(int argc, char **argv)
 	
 	if(argc!=4)
 	{
-		fprintf(stderr,"usage: svm-classify test_file model_file output_file\n");
+		fprintf(stderr,"usage: svm-predict test_file model_file output_file\n");
 		exit(1);
 	}
 
@@ -84,7 +86,7 @@ int main(int argc, char **argv)
 		exit(1);
 	}
 
-	classify(input,output);
+	predict(input,output);
 	svm_destroy_model(model);
 	fclose(input);
 	fclose(output);

@@ -298,14 +298,13 @@ class Solver {
 	int l;
 	boolean unshrinked;		// XXX
 	
-	static final double EPS_A = 1e-12;
 	static final double INF = java.lang.Double.POSITIVE_INFINITY;
 
 	void update_alpha_status(int i)
 	{
-		if(alpha[i] >= C-EPS_A)
+		if(alpha[i] >= C)
 			alpha_status[i] = UPPER_BOUND;
-		else if(alpha[i] <= EPS_A)
+		else if(alpha[i] <= 0)
 			alpha_status[i] = LOWER_BOUND;
 		else alpha_status[i] = FREE;
 	}
@@ -319,7 +318,7 @@ class Solver {
 		double obj;
 		double rho;
 		double upper_bound;
-		double r;	// for nu-svc
+		double r;	// for Solver_NU
 	}
 
 	void swap_index(int i, int j)
@@ -440,7 +439,7 @@ class Solver {
 
 			++iter;
 
-			// update alpha[i] and alpha[j]
+			// update alpha[i] and alpha[j], handle bounds carefully
 
 			double[] Q_i = Q.get_Q(i,active_size);
 			double[] Q_j = Q.get_Q(j,active_size);
@@ -450,21 +449,79 @@ class Solver {
 
 			if(y[i]!=y[j])
 			{
-				double L = Math.max(0.0,alpha[j]-alpha[i]);
-				double H = Math.min(C,C+alpha[j]-alpha[i]);
-				alpha[j] += (-G[i]-G[j])/(Q_i[i]+Q_j[j]+2*Q_i[j]);
-				if(alpha[j] >= H) alpha[j] = H;
-				else if(alpha[j] <= L) alpha[j] = L;
-				alpha[i] += (alpha[j] - old_alpha_j);
+				double delta = (-G[i]-G[j])/(Q_i[i]+Q_j[j]+2*Q_i[j]);
+				double diff = alpha[i] - alpha[j];
+				alpha[i] += delta;
+				alpha[j] += delta;
+				if(diff > 0)
+				{
+					if(alpha[i] > C)
+					{
+						alpha[i] = C;
+						alpha[j] = C - diff;
+					}
+					else if(alpha[j] < 0)
+					{
+						alpha[j] = 0;
+						alpha[i] = diff;
+					}
+				}
+				else
+				{
+					if(alpha[j] > C)
+					{
+						alpha[j] = C;
+						alpha[i] = C + diff;
+					}
+					else if(alpha[i] < 0)
+					{
+						alpha[i] = 0;
+						alpha[j] = -diff;
+					}
+				}
 			}
 			else
 			{
-				double L = Math.max(0.0,alpha[i]+alpha[j]-C);
-				double H = Math.min(C,alpha[i]+alpha[j]);
-				alpha[j] += (G[i]-G[j])/(Q_i[i]+Q_j[j]-2*Q_i[j]);
-				if(alpha[j] >= H) alpha[j] = H;
-				else if(alpha[j] <= L) alpha[j] = L;
-				alpha[i] -= (alpha[j] - old_alpha_j);
+				double delta = (G[i]-G[j])/(Q_i[i]+Q_j[j]-2*Q_i[j]);
+				double sum = alpha[i] + alpha[j];
+				alpha[i] -= delta;
+				alpha[j] += delta;
+				if(sum > C)
+				{
+					if(alpha[i] > C)
+					{
+						alpha[i] = C;
+						alpha[j] = sum - C;
+					}
+					else if(alpha[j] > C)
+					{
+						alpha[j] = C;
+						alpha[i] = sum - C;
+					}
+				}
+				else
+				{
+					if(alpha[i] < 0)
+					{
+						alpha[i] = 0;
+						alpha[j] = sum;
+					}
+					else if(alpha[j] < 0)
+					{
+						alpha[j] = 0;
+						alpha[i] = sum;
+					}
+				}
+			}
+
+			// update G
+
+			double delta_alpha_i = alpha[i] - old_alpha_i;
+			double delta_alpha_j = alpha[j] - old_alpha_j;
+
+			for(int k=0;k<active_size;k++)
+			{
+				G[k] += Q_i[k]*delta_alpha_i + Q_j[k]*delta_alpha_j;
 			}
 
 			// update alpha_status and G_bar
@@ -498,15 +555,6 @@ class Solver {
 				}
 			}
 
-			// update G
-
-			double delta_alpha_i = alpha[i] - old_alpha_i;
-			double delta_alpha_j = alpha[j] - old_alpha_j;
-
-			for(int k=0;k<active_size;k++)
-			{
-				G[k] += Q_i[k]*delta_alpha_i + Q_j[k]*delta_alpha_j;
-			}
 		}
 
 		// calculate rho
@@ -707,19 +755,18 @@ class Solver {
 }
 
 //
-// Solver for nu-svm classification
+// Solver for nu-svm classification and regression
 //
-
-final class Solver_NU_SVC extends Solver
+// additional constraint: e^T \alpha = constant
+//
+final class Solver_NU extends Solver
 {
-	private byte[] y1;
 	private SolutionInfo si;
 
 	void Solve(int l, Kernel Q, double[] b, byte[] y,
 		   double[] alpha, double C, double eps,
-		   SolutionInfo si, byte[] y1_, int shrinking)
+		   SolutionInfo si, int shrinking)
 	{
-		y1 = (byte[])y1_.clone();
 		this.si = si;
 		super.Solve(l,Q,b,y,alpha,C,eps,si,shrinking);
 	}
@@ -744,7 +791,7 @@ final class Solver_NU_SVC extends Solver
 
 		for(int i=0;i<active_size;i++)
 		{
-			if(y1[i]==+1)	// y == +1
+			if(y[i]==+1)	// y == +1
 			{
 				if(!is_upper_bound(i))	// d = +1
 				{
@@ -812,7 +859,7 @@ final class Solver_NU_SVC extends Solver
 		{
 			if(!is_upper_bound(k))
 			{
-				if(y1[k]==+1)
+				if(y[k]==+1)
 				{
 					if(-G[k] > Gmax1) Gmax1 = -G[k];
 				}
@@ -820,7 +867,7 @@ final class Solver_NU_SVC extends Solver
 			}
 			if(!is_lower_bound(k))
 			{
-				if(y1[k]==+1)
+				if(y[k]==+1)
 				{	
 					if(G[k] > Gmax2) Gmax2 = G[k];
 				}
@@ -837,7 +884,7 @@ final class Solver_NU_SVC extends Solver
 		{
 			if(is_lower_bound(k))
 			{
-				if(y1[k]==+1)
+				if(y[k]==+1)
 				{
 					if(-G[k] >= Gm1) continue;
 				}
@@ -845,7 +892,7 @@ final class Solver_NU_SVC extends Solver
 			}
 			else if(is_upper_bound(k))
 			{
-				if(y1[k]==+1)
+				if(y[k]==+1)
 				{
 					if(G[k] >= Gm2) continue;
 				}
@@ -854,7 +901,6 @@ final class Solver_NU_SVC extends Solver
 			else continue;
 
 			--active_size;
-			swap(byte,y1[k],y1[active_size]);
 			swap_index(k,active_size);
 			--k;	// look at the newcomer
 		}
@@ -886,7 +932,6 @@ final class Solver_NU_SVC extends Solver
 			}
 			else continue;
 
-			swap(byte,y1[k],y1[active_size]);
 			swap_index(k,active_size);
 			active_size++;
 			++k;	// look at the newcomer
@@ -902,7 +947,7 @@ final class Solver_NU_SVC extends Solver
 
 		for(int i=0;i<active_size;i++)
 		{
-			if(y1[i]==+1)
+			if(y[i]==+1)
 			{
 				if(is_lower_bound(i))
 					ub1 = Math.min(ub1,G[i]);
@@ -945,14 +990,14 @@ final class Solver_NU_SVC extends Solver
 }
 
 //
-// Q matrices for different formulations
+// Q matrices for various formulations
 //
-class C_SVC_Q extends Kernel
+class SVC_Q extends Kernel
 {
 	private final byte[] y;
 	private final Cache cache;
 
-	C_SVC_Q(svm_problem prob, svm_parameter param, byte[] y_)
+	SVC_Q(svm_problem prob, svm_parameter param, byte[] y_)
 	{
 		super(prob.l, prob.x, param);
 		y = (byte[])y_.clone();
@@ -1002,17 +1047,20 @@ class ONE_CLASS_Q extends Kernel
 	}
 }
 
-class C_SVR_Q extends Kernel
+class SVR_Q extends Kernel
 {
+	private final int l;
 	private final Cache cache;
 	private final byte[] sign;
 	private final int[] index;
+	private int next_buffer;
+	private double[][] buffer;
 
-	C_SVR_Q(svm_problem prob, svm_parameter param)
+	SVR_Q(svm_problem prob, svm_parameter param)
 	{
 		super(prob.l, prob.x, param);
-		int l = prob.l;
-		cache = new Cache(2*l,(int)(param.cache_size*(1<<20)));
+		l = prob.l;
+		cache = new Cache(l,(int)(param.cache_size*(1<<20)));
 		sign = new byte[2*l];
 		index = new int[2*l];
 		for(int k=0;k<l;k++)
@@ -1022,11 +1070,12 @@ class C_SVR_Q extends Kernel
 			index[k] = k;
 			index[k+l] = k;
 		}
+		buffer = new double[2][2*l];
+		next_buffer = 0;
 	}
 
 	void swap_index(int i, int j)
 	{
-		cache.swap_index(i,j);
 		swap(byte,sign[i],sign[j]);
 		swap(int,index[i],index[j]);
 	}
@@ -1034,22 +1083,27 @@ class C_SVR_Q extends Kernel
 	double[] get_Q(int i, int len)
 	{
 		double[][] data = new double[1][];
-		int start;
-		if((start = cache.get_data(i,data,len)) < len)
+		int real_i = index[i];
+		if(cache.get_data(real_i,data,l) < l)
 		{
-			byte si = sign[i];
-			for(int j=start;j<len;j++)
-			{
-				double v = kernel_function(index[i],index[j]);
-				if(si == sign[j]) data[0][j] = v;
-				else data[0][j] = -v;
-			}
+			for(int j=0;j<l;j++)
+				data[0][j] = kernel_function(real_i,j);
 		}
-		return data[0];
+
+		// reorder and copy
+		double buf[] = buffer[next_buffer];
+		next_buffer = 1 - next_buffer;
+		byte si = sign[i];
+		for(int j=0;j<len;j++)
+			buf[j] = si * sign[j] * data[0][index[j]];
+		return buf;
 	}
 }
 
 public class svm {
+	//
+	// construct and solve various formulations
+	//
 	private static void solve_c_svc(svm_problem prob, svm_parameter param,
 					double[] alpha, Solver.SolutionInfo si)
 	{
@@ -1067,7 +1121,7 @@ public class svm {
 		}
 
 		Solver s = new Solver();
-		s.Solve(l, new C_SVC_Q(prob,param,y), minus_ones, y,
+		s.Solve(l, new SVC_Q(prob,param,y), minus_ones, y,
 			alpha, param.C, param.eps, si, param.shrinking);
 
 		double sum_alpha=0;
@@ -1125,17 +1179,13 @@ public class svm {
 			}
 
 		double[] zeros = new double[l];
-		byte[] ones = new byte[l];
 
 		for(i=0;i<l;i++)
-		{
 			zeros[i] = 0;
-			ones[i] = 1;
-		}
 
-		Solver_NU_SVC s = new Solver_NU_SVC();
-		s.Solve(l, new C_SVC_Q(prob,param,y), zeros, ones,
-			alpha, 1.0, param.eps, si, y, param.shrinking);
+		Solver_NU s = new Solver_NU();
+		s.Solve(l, new SVC_Q(prob,param,y), zeros, y,
+			alpha, 1.0, param.eps, si, param.shrinking);
 		double r = si.r;
 
 		System.out.print("C = "+1/r+"\n");
@@ -1179,7 +1229,7 @@ public class svm {
 			alpha, 1.0, param.eps, si, param.shrinking);
 	}
 
-	private static void solve_c_svr(svm_problem prob, svm_parameter param,
+	private static void solve_epsilon_svr(svm_problem prob, svm_parameter param,
 					double[] alpha, Solver.SolutionInfo si)
 	{
 		int l = prob.l;
@@ -1200,20 +1250,68 @@ public class svm {
 		}
 
 		Solver s = new Solver();
-		s.Solve(2*l, new C_SVR_Q(prob,param), linear_term, y,
+		s.Solve(2*l, new SVR_Q(prob,param), linear_term, y,
 			alpha2, param.C, param.eps, si, param.shrinking);
 
+		double sum_alpha = 0;
+		for(i=0;i<l;i++)
+		{
+			alpha[i] = alpha2[i] - alpha2[i+l];
+			sum_alpha += Math.abs(alpha[i]);
+		}
+		System.out.print("nu = "+sum_alpha/(param.C*l)+"\n");
+	}
+
+	private static void solve_nu_svr(svm_problem prob, svm_parameter param,
+					double[] alpha, Solver.SolutionInfo si)
+	{
+		if(param.nu < 0 || param.nu > 1)
+		{
+			System.err.print("specified nu is out of range\n");
+			System.exit(1);
+		}
+
+		int l = prob.l;
+		double C = param.C;
+		double[] alpha2 = new double[2*l];
+		double[] linear_term = new double[2*l];
+		byte[] y = new byte[2*l];
+		int i;
+
+		double sum = C * param.nu * l / 2;
+		for(i=0;i<l;i++)
+		{
+			alpha2[i] = alpha2[i+l] = Math.min(sum,C);
+			sum -= alpha2[i];
+			
+			linear_term[i] = - prob.y[i];
+			y[i] = 1;
+
+			linear_term[i+l] = prob.y[i];
+			y[i+l] = -1;
+		}
+
+		Solver_NU s = new Solver_NU();
+		s.Solve(2*l, new SVR_Q(prob,param), linear_term, y,
+			alpha2, param.C, param.eps, si, param.shrinking);
+
+		System.out.print("epsilon = "+(-si.r)+"\n");
+		
 		for(i=0;i<l;i++)
 			alpha[i] = alpha2[i] - alpha2[i+l];
 	}
 
 	//
-	// Interface functions
+	// decision_function
 	//
-	public static svm_model svm_train(svm_problem prob, svm_parameter param)
+	static class decision_function
 	{
-		svm_model model = new svm_model();
-		model.param = param;
+		double[] alpha;
+		double rho;	
+	};
+
+	static decision_function svm_train_one(svm_problem prob, svm_parameter param)
+	{
 		double[] alpha = new double[prob.l];
 		Solver.SolutionInfo si = new Solver.SolutionInfo();
 		switch(param.svm_type)
@@ -1227,12 +1325,14 @@ public class svm {
 			case svm_parameter.ONE_CLASS:
 				solve_one_class(prob,param,alpha,si);
 				break;
-			case svm_parameter.C_SVR:
-				solve_c_svr(prob,param,alpha,si);
+			case svm_parameter.EPSILON_SVR:
+				solve_epsilon_svr(prob,param,alpha,si);
+				break;
+			case svm_parameter.NU_SVR:
+				solve_nu_svr(prob,param,alpha,si);
 				break;
 		}
 
-		model.rho = si.rho;
 		System.out.print("obj = "+si.obj+", rho = "+si.rho+"\n");
 
 		// output SVs
@@ -1241,51 +1341,298 @@ public class svm {
 		int nBSV = 0;
 		for(int i=0;i<prob.l;i++)
 		{
-			if(Math.abs(alpha[i]) >= Solver.EPS_A)
+			if(Math.abs(alpha[i]) > 0)
 			{
 				++nSV;
-				if(Math.abs(alpha[i]) >= si.upper_bound - Solver.EPS_A)
+				if(Math.abs(alpha[i]) >= si.upper_bound)
 					++nBSV;
 			}
 		}
-
 		System.out.print("nSV = "+nSV+", nBSV = "+nBSV+"\n");
 
-		model.n = nSV;
-		model.sv_coef = new double[nSV];
-		model.SV = new svm_node[nSV][];
+		decision_function f = new decision_function();
+		f.alpha = alpha;
+		f.rho = si.rho;
+		return f;
+	}
 
+	//
+	// Interface functions
+	//
+	public static svm_model svm_train(svm_problem prob, svm_parameter param)
+	{
+		svm_model model = new svm_model();
+		model.param = param;
+
+		if(param.svm_type == svm_parameter.ONE_CLASS ||
+		   param.svm_type == svm_parameter.EPSILON_SVR ||
+		   param.svm_type == svm_parameter.NU_SVR)
 		{
+			// regression or one-class-svm
+			model.nr_class = 2;
+			model.label = null;
+			model.nSV = null;
+			model.sv_coef = new double[1][];
+			decision_function f = svm_train_one(prob,param);
+			model.rho = new double[1];
+			model.rho[0] = f.rho;
+
+			int nSV = 0;
+			int i;
+			for(i=0;i<prob.l;i++)
+				if(Math.abs(f.alpha[i]) > 0) ++nSV;
+			model.l = nSV;
+			model.SV = new svm_node[nSV][];
+			model.sv_coef[0] = new double[nSV];
 			int j = 0;
-			for(int i=0;i<prob.l;i++)
-			{
-				if(Math.abs(alpha[i]) >= Solver.EPS_A)
+			for(i=0;i<prob.l;i++)
+				if(Math.abs(f.alpha[i]) > 0)
 				{
-					model.sv_coef[j] = alpha[i];
 					model.SV[j] = prob.x[i];
+					model.sv_coef[0][j] = f.alpha[i];
 					++j;
+				}		
+		}
+		else
+		{
+			// classification
+			// find out the number of classes
+			int l = prob.l;
+			int max_nr_class = 16;
+			int nr_class = 0;
+			int[] label = new int[max_nr_class];
+			int[] count = new int[max_nr_class];
+			int[] index = new int[l];
+
+			int i;
+			for(i=0;i<l;i++)
+			{
+				int this_label = (int)prob.y[i];
+				int j;
+				for(j=0;j<nr_class;j++)
+					if(this_label == label[j])
+					{
+						++count[j];
+						break;
+					}
+				index[i] = j;
+				if(j == nr_class)
+				{
+					if(nr_class == max_nr_class)
+					{
+						max_nr_class *= 2;
+						int[] new_data = new int[max_nr_class];
+						System.arraycopy(label,0,new_data,0,label.length);
+						label = new_data;
+						
+						new_data = new int[max_nr_class];
+						System.arraycopy(count,0,new_data,0,count.length);
+						count = new_data;
+					}
+					label[nr_class] = this_label;
+					count[nr_class] = 1;
+					++nr_class;
 				}
 			}
+
+			// group training data of the same class
+
+			int[] start = new int[nr_class];
+			start[0] = 0;
+			for(i=1;i<nr_class;i++)
+				start[i] = start[i-1]+count[i-1];
+
+			svm_node[][] x = new svm_node[l][];
+		
+			for(i=0;i<l;i++)
+			{
+				x[start[index[i]]] = prob.x[i];
+				++start[index[i]];
+			}
+		
+			start[0] = 0;
+			for(i=1;i<nr_class;i++)
+				start[i] = start[i-1]+count[i-1];
+
+			// train n*(n-1)/2 models
+		
+			boolean[] nonzero = new boolean[l];
+			for(i=0;i<l;i++)
+				nonzero[i] = false;
+			decision_function[] f = new decision_function[nr_class*(nr_class-1)/2];
+
+			int p = 0;
+			for(i=0;i<nr_class;i++)
+				for(int j=i+1;j<nr_class;j++)
+				{
+					svm_problem sub_prob = new svm_problem();
+					int si = start[i], sj = start[j];
+					int ci = count[i], cj = count[j];
+					sub_prob.l = ci+cj;
+					sub_prob.x = new svm_node[sub_prob.l][];
+					sub_prob.y = new double[sub_prob.l];
+					for(int k=0;k<ci;k++)
+					{
+						sub_prob.x[k] = x[si+k];
+						sub_prob.y[k] = +1;
+					}
+					for(int k=0;k<cj;k++)
+					{
+						sub_prob.x[ci+k] = x[sj+k];
+						sub_prob.y[ci+k] = -1;
+					}
+				
+					f[p] = svm_train_one(sub_prob,param);
+					for(int k=0;k<ci;k++)
+						if(!nonzero[si+k] && Math.abs(f[p].alpha[k]) > 0)
+							nonzero[si+k] = true;
+					for(int k=0;k<cj;k++)
+						if(!nonzero[sj+k] && Math.abs(f[p].alpha[ci+k]) > 0)
+							nonzero[sj+k] = true;
+					++p;
+				}
+
+			// build output
+
+			model.nr_class = nr_class;
+		
+			model.label = new int[nr_class];
+			for(i=0;i<nr_class;i++)
+				model.label[i] = label[i];
+		
+			model.rho = new double[nr_class*(nr_class-1)/2];
+			for(i=0;i<nr_class*(nr_class-1)/2;i++)
+				model.rho[i] = f[i].rho;
+
+			int nnz = 0;
+			int[] nz_count = new int[nr_class];
+			model.nSV = new int[nr_class];
+			for(i=0;i<nr_class;i++)
+			{
+				int nSV = 0;
+				for(int j=0;j<count[i];j++)
+					if(nonzero[start[i]+j])
+					{	
+						++nSV;
+						++nnz;
+					}
+				model.nSV[i] = nSV;
+				nz_count[i] = nSV;
+			}
+		
+			System.out.print("Total nSV = "+nnz+"\n");
+
+			model.l = nnz;
+			model.SV = new svm_node[nnz][];
+			p = 0;
+			for(i=0;i<l;i++)
+				if(nonzero[i]) model.SV[p++] = x[i];
+
+			int[] nz_start = new int[nr_class];
+			nz_start[0] = 0;
+			for(i=1;i<nr_class;i++)
+				nz_start[i] = nz_start[i-1]+nz_count[i-1];
+
+			model.sv_coef = new double[nr_class-1][];
+			for(i=0;i<nr_class-1;i++)
+				model.sv_coef[i] = new double[nnz];
+
+			p = 0;
+			for(i=0;i<nr_class;i++)
+				for(int j=i+1;j<nr_class;j++)
+				{
+					// classifier (i,j): coefficients with
+					// i are in sv_coef[j-1][nz_start[i]...],
+					// j are in sv_coef[i][nz_start[j]...]
+
+					int si = start[i];
+					int sj = start[j];
+					int ci = count[i];
+					int cj = count[j];
+				
+					int q = nz_start[i];
+					int k;
+					for(k=0;k<ci;k++)
+						if(nonzero[si+k])
+							model.sv_coef[j-1][q++] = f[p].alpha[k];
+					q = nz_start[j];
+					for(k=0;k<cj;k++)
+						if(nonzero[sj+k])
+							model.sv_coef[i][q++] = f[p].alpha[ci+k];
+					++p;
+				}
 		}
 		return model;
 	}
 
-	public static double svm_classify(svm_model model, svm_node[] x)
+	public static double svm_predict(svm_model model, svm_node[] x)
 	{
-		int n = model.n;
-		double[] sv_coef = model.sv_coef;
+		if(model.param.svm_type == svm_parameter.ONE_CLASS ||
+		   model.param.svm_type == svm_parameter.EPSILON_SVR ||
+		   model.param.svm_type == svm_parameter.NU_SVR)
+		{
+			double[] sv_coef = model.sv_coef[0];
+			double sum = 0;
+			for(int i=0;i<model.l;i++)
+				sum += sv_coef[i] * Kernel.k_function(x,model.SV[i],model.param);
+			sum -= model.rho[0];
+			if(model.param.svm_type == svm_parameter.ONE_CLASS)
+				return (sum>0)?1:-1;
+			else
+				return sum;
+		}
+		else
+		{
+			int i;
+			int nr_class = model.nr_class;
+			int l = model.l;
+		
+			double[] kvalue = new double[l];
+			for(i=0;i<l;i++)
+				kvalue[i] = Kernel.k_function(x,model.SV[i],model.param);
 
-		double sum = 0;
+			int[] start = new int[nr_class];
+			start[0] = 0;
+			for(i=1;i<nr_class;i++)
+				start[i] = start[i-1]+model.nSV[i-1];
 
-		for(int i=0;i<n;i++)
-			sum += sv_coef[i] * Kernel.k_function(x,model.SV[i],model.param);
-		sum-=(model.rho);
-		return sum;
+			int[] vote = new int[nr_class];
+			for(i=0;i<nr_class;i++)
+				vote[i] = 0;
+			int p=0;
+			for(i=0;i<nr_class;i++)
+				for(int j=i+1;j<nr_class;j++)
+				{
+					double sum = 0;
+					int si = start[i];
+					int sj = start[j];
+					int ci = model.nSV[i];
+					int cj = model.nSV[j];
+				
+					int k;
+					double[] coef1 = model.sv_coef[j-1];
+					double[] coef2 = model.sv_coef[i];
+					for(k=0;k<ci;k++)
+						sum += coef1[si+k] * kvalue[si+k];
+					for(k=0;k<cj;k++)
+						sum += coef2[sj+k] * kvalue[sj+k];
+					sum -= model.rho[p++];
+					if(sum > 0)
+						++vote[i];
+					else
+						++vote[j];
+				}
+
+			int vote_max_idx = 0;
+			for(i=1;i<nr_class;i++)
+				if(vote[i] > vote[vote_max_idx])
+					vote_max_idx = i;
+			return model.label[vote_max_idx];
+		}
 	}
-
 	static final String svm_type_table[] =
 	{
-		"c_svc","nu_svc","one_class","c_svr",
+		"c_svc","nu_svc","one_class","epsilon_svr","nu_svr",
 	};
 
 	static final String kernel_type_table[]=
@@ -1314,16 +1661,43 @@ public class svm {
 		   param.kernel_type == svm_parameter.SIGMOID)
 			fp.writeBytes("coef0 "+param.coef0+"\n");
 
-		fp.writeBytes("rho "+model.rho+"\n");
-		fp.writeBytes("SV "+model.n+"\n");
+		int nr_class = model.nr_class;
+		int l = model.l;
+		fp.writeBytes("nr_class "+nr_class+"\n");
+		fp.writeBytes("total_sv "+l+"\n");
+	
+		{
+			fp.writeBytes("rho");
+			for(int i=0;i<nr_class*(nr_class-1)/2;i++)
+				fp.writeBytes(" "+model.rho[i]);
+			fp.writeBytes("\n");
+		}
+	
+		if(model.label != null)
+		{
+			fp.writeBytes("label");
+			for(int i=0;i<nr_class;i++)
+				fp.writeBytes(" "+model.label[i]);
+			fp.writeBytes("\n");
+		}
 
-		int n = model.n;
-		double[] sv_coef = model.sv_coef;
+		if(model.nSV != null)
+		{
+			fp.writeBytes("nr_sv");
+			for(int i=0;i<nr_class;i++)
+				fp.writeBytes(" "+model.nSV[i]);
+			fp.writeBytes("\n");
+		}
+
+		fp.writeBytes("SV\n");
+		double[][] sv_coef = model.sv_coef;
 		svm_node[][] SV = model.SV;
 
-		for(int i=0;i<n;i++)
+		for(int i=0;i<l;i++)
 		{
-			fp.writeBytes(sv_coef[i]+" ");
+			for(int j=0;j<nr_class-1;j++)
+				fp.writeBytes(sv_coef[j][i]+" ");
+
 			svm_node[] p = SV[i];
 			for(int j=0;j<p.length;j++)
 				fp.writeBytes(p[j].index+":"+p[j].value+" ");
@@ -1347,11 +1721,13 @@ public class svm {
 	{
 		BufferedReader fp = new BufferedReader(new FileReader(model_file_name));
 
-		// read n,b,param
+		// read parameters
 
 		svm_model model = new svm_model();
 		svm_parameter param = new svm_parameter();
 		model.param = param;
+		model.label = null;
+		model.nSV = null;
 
 		while(true)
 		{
@@ -1398,11 +1774,36 @@ public class svm {
 				param.gamma = atof(arg);
 			else if(cmd.startsWith("coef0"))
 				param.coef0 = atof(arg);
+			else if(cmd.startsWith("nr_class"))
+				model.nr_class = atoi(arg);
+			else if(cmd.startsWith("total_sv"))
+				model.l = atoi(arg);
 			else if(cmd.startsWith("rho"))
-				model.rho = atof(arg);
+			{
+				int n = model.nr_class * (model.nr_class-1)/2;
+				model.rho = new double[n];
+				StringTokenizer st = new StringTokenizer(arg);
+				for(int i=0;i<n;i++)
+					model.rho[i] = atof(st.nextToken());
+			}
+			else if(cmd.startsWith("label"))
+			{
+				int n = model.nr_class;
+				model.label = new int[n];
+				StringTokenizer st = new StringTokenizer(arg);
+				for(int i=0;i<n;i++)
+					model.label[i] = atoi(st.nextToken());					
+			}
+			else if(cmd.startsWith("nr_sv"))
+			{
+				int n = model.nr_class;
+				model.nSV = new int[n];
+				StringTokenizer st = new StringTokenizer(arg);
+				for(int i=0;i<n;i++)
+					model.nSV[i] = atoi(st.nextToken());
+			}
 			else if(cmd.startsWith("SV"))
 			{
-				model.n = atoi(arg);
 				break;
 			}
 			else
@@ -1414,19 +1815,21 @@ public class svm {
 
 		// read sv_coef and SV
 
-		int n = model.n;
-		model.sv_coef = new double[n];
-		model.SV = new svm_node[n][];
+		int m = model.nr_class - 1;
+		int l = model.l;
+		model.sv_coef = new double[m][l];
+		model.SV = new svm_node[l][];
 
-		for(int i=0;i<n;i++)
+		for(int i=0;i<l;i++)
 		{
 			String line = fp.readLine();
 			StringTokenizer st = new StringTokenizer(line," \t\n\r\f:");
 
-			model.sv_coef[i] = atof(st.nextToken());
-			int m = st.countTokens()/2;
-			model.SV[i] = new svm_node[m];
-			for(int j=0;j<m;j++)
+			for(int k=0;k<m;k++)
+				model.sv_coef[k][i] = atof(st.nextToken());
+			int n = st.countTokens()/2;
+			model.SV[i] = new svm_node[n];
+			for(int j=0;j<n;j++)
 			{
 				model.SV[i][j] = new svm_node();
 				model.SV[i][j].index = atoi(st.nextToken());

@@ -4,7 +4,8 @@ public class svm_parameter
 	public static final int C_SVC = 0;
 	public static final int NU_SVC = 1;
 	public static final int ONE_CLASS = 2;
-	public static final int C_SVR = 3;
+	public static final int EPSILON_SVR = 3;
+	public static final int NU_SVR = 4;
 
 	/* kernel_type */
 	public static final int LINEAR = 0;
@@ -21,8 +22,8 @@ public class svm_parameter
 	// these are for training only
 	public double cache_size; // in MB
 	public double eps;	// stopping criteria
-	public double C;	// for C_SVC and C_SVR
-	public double nu;	// for NU_SVC and ONE_CLASS
-	public double p;	// for C_SVR
+	public double C;	// for C_SVC, EPSILON_SVR and NU_SVR
+	public double nu;	// for NU_SVC, ONE_CLASS, and NU_SVR
+	public double p;	// for EPSILON_SVR
 	public int shrinking;	// use the shrinking heuristics
 }
