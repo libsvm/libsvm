@@ -8,6 +8,7 @@ if len(sys.argv) <= 1:
 	raise SystemExit
 
 train_pathname = sys.argv[1]
+assert os.path.exists(train_pathname),"training file not found"
 file_name = os.path.split(train_pathname)[1]
 scaled_file = file_name + ".scale"
 model_file = file_name + ".model"
@@ -16,6 +17,7 @@ range_file = file_name + ".range"
 if len(sys.argv) > 2:
 	test_pathname = sys.argv[2]
 	file_name = os.path.split(test_pathname)[1]
+	assert os.path.exists(test_pathname),"testing file not found"
 	scaled_test_file = file_name + ".scale"
 	predict_test_file = file_name + ".predict"
 
@@ -25,7 +27,7 @@ os.system(cmd)
 
 cmd = "./grid.py %s" % (scaled_file)
 print 'Cross validation...'
-dummy, f, dummy = os.popen3(cmd)
+dummy, f = os.popen2(cmd)
 
 line = ''
 while 1:
@@ -33,7 +35,8 @@ while 1:
 	line = f.readline()
 	if not line: break
 c,g,rate = map(float,last_line.split())
-print 'Best c=%s, g=%s' % (c,g)
+
+print 'Best c=%s, g=%s CV rate=%s' % (c,g,rate)
 
 cmd = "../svm-train -c %s -g %s %s %s" % (c,g,scaled_file,model_file)
 print 'Training...'
