@@ -1,3 +1,4 @@
+import libsvm.*;
 import java.applet.*;
 import java.awt.*;
 import java.util.*;

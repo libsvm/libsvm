@@ -332,6 +332,7 @@ public class svm {
 	public static svm_model svm_load_model(String model_file_name) throws IOException
 }
 
+The library is in the "libsvm" package.
 Note that in Java version, svm_node[] is not ended with a node whose index = -1.
 
 ADDITIONAL INFORMATION

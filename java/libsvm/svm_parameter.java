@@ -1,3 +1,4 @@
+package libsvm;
 public class svm_parameter
 {
 	/* svm_type */

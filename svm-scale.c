@@ -6,10 +6,10 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <ctype.h>
+#include <string.h>
 
-#define MAX_LINE_LEN 100000
-
-char buf[MAX_LINE_LEN];
+char *line;
+int max_line_len = 1024;
 double lower=-1.0,upper=1.0,y_lower,y_upper;
 int y_scaling = 0;
 double *feature_max;
@@ -23,6 +23,7 @@ int max_index;
 
 void output_target(double value);
 void output(int index, double value);
+char* readline(FILE *input);
 
 int main(int argc,char **argv)
 {
@@ -70,6 +71,8 @@ int main(int argc,char **argv)
 		exit(1);
 	}
 
+	line = (char *) malloc(max_line_len*sizeof(char));
+
 #define SKIP_TARGET\
 	while(isspace(*p)) ++p;\
 	while(!isspace(*p)) ++p;
@@ -83,9 +86,9 @@ int main(int argc,char **argv)
 	/* assumption: min index of attributes is 1 */
 	/* pass 1: find out max index of attributes */
 	max_index = 0;
-	while(fgets(buf,MAX_LINE_LEN,fp)!=NULL)
+	while(readline(fp)!=NULL)
 	{
-		char *p=buf;
+		char *p=line;
 
 		SKIP_TARGET
 
@@ -114,9 +117,9 @@ int main(int argc,char **argv)
 	rewind(fp);
 
 	/* pass 2: find out min/max value */
-	while(fgets(buf,MAX_LINE_LEN,fp)!=NULL)
+	while(readline(fp)!=NULL)
 	{
-		char *p=buf;
+		char *p=line;
 		int next_index=1;
 		double target;
 		double value;
@@ -152,9 +155,9 @@ int main(int argc,char **argv)
 	rewind(fp);
 
 	/* pass 3: scale */
-	while(fgets(buf,MAX_LINE_LEN,fp)!=NULL)
+	while(readline(fp)!=NULL)
 	{
-		char *p=buf;
+		char *p=line;
 		int next_index=1;
 		int index;
 		double target;
@@ -182,8 +185,27 @@ int main(int argc,char **argv)
 		printf("\n");
 	}
 
+	free(line);
 	fclose(fp);
 	return 0;
+}
+
+char* readline(FILE *input)
+{
+	int len;
+	
+	if(fgets(line,max_line_len,input) == NULL)
+		return NULL;
+
+	while(strrchr(line,'\n') == NULL)
+	{
+		max_line_len *= 2;
+		line = (char *) realloc(line, max_line_len);
+		len = strlen(line);
+		if(fgets(line+len,max_line_len-len,input) == NULL)
+			break;
+	}
+	return line;
 }
 
 void output_target(double value)

@@ -1,6 +1,7 @@
-define(`swap',`do {$1 _=$2; $2=$3; $3=_;} while(false)')
-define(`Qfloat',`float')
-define(`SIZE_OF_QFLOAT',4)
+
+
+
+package libsvm;
 import java.io.*;
 import java.util.*;
 
@@ -16,7 +17,7 @@ class Cache {
 	private final class head_t
 	{
 		head_t prev, next;	// a cicular list
-		Qfloat[] data;
+		float[] data;
 		int len;		// data[0,len) is cached in this entry
 	}
 	private final head_t[] head;
@@ -28,8 +29,8 @@ class Cache {
 		size = size_;
 		head = new head_t[l];
 		for(int i=0;i<l;i++) head[i] = new head_t();
-		size /= SIZE_OF_QFLOAT;
-		size -= l * (16/SIZE_OF_QFLOAT);	// sizeof(head_t) == 16
+		size /= 4;
+		size -= l * (16/4);	// sizeof(head_t) == 16
 		lru_head = new head_t();
 		lru_head.next = lru_head.prev = lru_head;
 	}
@@ -54,7 +55,7 @@ class Cache {
 	// return some position p where [p,len) need to be filled
 	// (p >= len if nothing needs to be filled)
 	// java: simulate pointer using single-element array
-	int get_data(int index, Qfloat[][] data, int len)
+	int get_data(int index, float[][] data, int len)
 	{
 		head_t h = head[index];
 		if(h.len > 0) lru_delete(h);
@@ -73,11 +74,11 @@ class Cache {
 			}
 
 			// allocate new space
-			Qfloat[] new_data = new Qfloat[len];
+			float[] new_data = new float[len];
 			if(h.data != null) System.arraycopy(h.data,0,new_data,0,h.len);
 			h.data = new_data;
 			size -= more;
-			swap(int,h.len,len);
+			do {int _=h.len; h.len=len; len=_;} while(false);
 		}
 
 		lru_insert(h);
@@ -91,18 +92,18 @@ class Cache {
 		
 		if(head[i].len > 0) lru_delete(head[i]);
 		if(head[j].len > 0) lru_delete(head[j]);
-		swap(Qfloat[],head[i].data,head[j].data);
-		swap(int,head[i].len,head[j].len);
+		do {float[] _=head[i].data; head[i].data=head[j].data; head[j].data=_;} while(false);
+		do {int _=head[i].len; head[i].len=head[j].len; head[j].len=_;} while(false);
 		if(head[i].len > 0) lru_insert(head[i]);
 		if(head[j].len > 0) lru_insert(head[j]);
 
-		if(i>j) swap(int,i,j);
+		if(i>j) do {int _=i; i=j; j=_;} while(false);
 		for(head_t h = lru_head.next; h!=lru_head; h=h.next)
 		{
 			if(h.len > i)
 			{
 				if(h.len > j)
-					swap(Qfloat,h.data[i],h.data[j]);
+					do {float _=h.data[i]; h.data[i]=h.data[j]; h.data[j]=_;} while(false);
 				else
 				{
 					// give up
@@ -133,12 +134,12 @@ abstract class Kernel {
 	private final double gamma;
 	private final double coef0;
 
-	abstract Qfloat[] get_Q(int column, int len);
+	abstract float[] get_Q(int column, int len);
 
 	void swap_index(int i, int j)
 	{
-		swap(svm_node[],x[i],x[j]);
-		if(x_square != null) swap(double,x_square[i],x_square[j]);
+		do {svm_node[] _=x[i]; x[i]=x[j]; x[j]=_;} while(false);
+		if(x_square != null) do {double _=x_square[i]; x_square[i]=x_square[j]; x_square[j]=_;} while(false);
 	}
 
 	private static double tanh(double x)
@@ -332,13 +333,13 @@ class Solver {
 	void swap_index(int i, int j)
 	{
 		Q.swap_index(i,j);
-		swap(byte,	y[i],y[j]);
-		swap(double,	G[i],G[j]);
-		swap(byte,	alpha_status[i],alpha_status[j]);
-		swap(double,	alpha[i],alpha[j]);
-		swap(double,	b[i],b[j]);
-		swap(int,	active_set[i],active_set[j]);
-		swap(double,	G_bar[i],G_bar[j]);
+		do {byte _=y[i]; y[i]=y[j]; y[j]=_;} while(false);
+		do {double _=G[i]; G[i]=G[j]; G[j]=_;} while(false);
+		do {byte _=alpha_status[i]; alpha_status[i]=alpha_status[j]; alpha_status[j]=_;} while(false);
+		do {double _=alpha[i]; alpha[i]=alpha[j]; alpha[j]=_;} while(false);
+		do {double _=b[i]; b[i]=b[j]; b[j]=_;} while(false);
+		do {int _=active_set[i]; active_set[i]=active_set[j]; active_set[j]=_;} while(false);
+		do {double _=G_bar[i]; G_bar[i]=G_bar[j]; G_bar[j]=_;} while(false);
 	}
 
 	void reconstruct_gradient()
@@ -354,7 +355,7 @@ class Solver {
 		for(i=0;i<active_size;i++)
 			if(is_free(i))
 			{
-				Qfloat[] Q_i = Q.get_Q(i,l);
+				float[] Q_i = Q.get_Q(i,l);
 				double alpha_i = alpha[i];
 				for(int j=active_size;j<l;j++)
 					G[j] += alpha_i * Q_i[j];
@@ -402,7 +403,7 @@ class Solver {
 			for(i=0;i<l;i++)
 				if(!is_lower_bound(i))
 				{
-					Qfloat[] Q_i = Q.get_Q(i,l);
+					float[] Q_i = Q.get_Q(i,l);
 					double alpha_i = alpha[i];
 					int j;
 					for(j=0;j<l;j++)
@@ -450,8 +451,8 @@ class Solver {
 
 			// update alpha[i] and alpha[j], handle bounds carefully
 
-			Qfloat[] Q_i = Q.get_Q(i,active_size);
-			Qfloat[] Q_j = Q.get_Q(j,active_size);
+			float[] Q_i = Q.get_Q(i,active_size);
+			float[] Q_j = Q.get_Q(j,active_size);
 
 			double C_i = get_C(i);
 			double C_j = get_C(j);
@@ -1031,14 +1032,14 @@ class SVC_Q extends Kernel
 		cache = new Cache(prob.l,(int)(param.cache_size*(1<<20)));
 	}
 
-	Qfloat[] get_Q(int i, int len)
+	float[] get_Q(int i, int len)
 	{
-		Qfloat[][] data = new Qfloat[1][];
+		float[][] data = new float[1][];
 		int start;
 		if((start = cache.get_data(i,data,len)) < len)
 		{
 			for(int j=start;j<len;j++)
-				data[0][j] = (Qfloat)(y[i]*y[j]*kernel_function(i,j));
+				data[0][j] = (float)(y[i]*y[j]*kernel_function(i,j));
 		}
 		return data[0];
 	}
@@ -1047,7 +1048,7 @@ class SVC_Q extends Kernel
 	{
 		cache.swap_index(i,j);
 		super.swap_index(i,j);
-		swap(byte,y[i],y[j]);
+		do {byte _=y[i]; y[i]=y[j]; y[j]=_;} while(false);
 	}
 }
 
@@ -1061,14 +1062,14 @@ class ONE_CLASS_Q extends Kernel
 		cache = new Cache(prob.l,(int)(param.cache_size*(1<<20)));
 	}
 
-	Qfloat[] get_Q(int i, int len)
+	float[] get_Q(int i, int len)
 	{
-		Qfloat[][] data = new Qfloat[1][];
+		float[][] data = new float[1][];
 		int start;
 		if((start = cache.get_data(i,data,len)) < len)
 		{
 			for(int j=start;j<len;j++)
-				data[0][j] = (Qfloat)kernel_function(i,j);
+				data[0][j] = (float)kernel_function(i,j);
 		}
 		return data[0];
 	}
@@ -1087,7 +1088,7 @@ class SVR_Q extends Kernel
 	private final byte[] sign;
 	private final int[] index;
 	private int next_buffer;
-	private Qfloat[][] buffer;
+	private float[][] buffer;
 
 	SVR_Q(svm_problem prob, svm_parameter param)
 	{
@@ -1103,28 +1104,28 @@ class SVR_Q extends Kernel
 			index[k] = k;
 			index[k+l] = k;
 		}
-		buffer = new Qfloat[2][2*l];
+		buffer = new float[2][2*l];
 		next_buffer = 0;
 	}
 
 	void swap_index(int i, int j)
 	{
-		swap(byte,sign[i],sign[j]);
-		swap(int,index[i],index[j]);
+		do {byte _=sign[i]; sign[i]=sign[j]; sign[j]=_;} while(false);
+		do {int _=index[i]; index[i]=index[j]; index[j]=_;} while(false);
 	}
 
-	Qfloat[] get_Q(int i, int len)
+	float[] get_Q(int i, int len)
 	{
-		Qfloat[][] data = new Qfloat[1][];
+		float[][] data = new float[1][];
 		int real_i = index[i];
 		if(cache.get_data(real_i,data,l) < l)
 		{
 			for(int j=0;j<l;j++)
-				data[0][j] = (Qfloat)kernel_function(real_i,j);
+				data[0][j] = (float)kernel_function(real_i,j);
 		}
 
 		// reorder and copy
-		Qfloat buf[] = buffer[next_buffer];
+		float buf[] = buffer[next_buffer];
 		next_buffer = 1 - next_buffer;
 		byte si = sign[i];
 		for(int j=0;j<len;j++)

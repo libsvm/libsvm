@@ -1,6 +1,7 @@
 //
 // svm_model
 //
+package libsvm;
 public class svm_model
 {
 	svm_parameter param;	// parameter

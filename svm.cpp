@@ -173,7 +173,7 @@ void Cache::swap_index(int i, int j)
 //
 class Kernel {
 public:
-	Kernel(int l, const svm_node * const * x, const svm_parameter& param);
+	Kernel(int l, svm_node * const * x, const svm_parameter& param);
 	virtual ~Kernel();
 
 	static double k_function(const svm_node *x, const svm_node *y,
@@ -217,7 +217,7 @@ private:
 	}
 };
 
-Kernel::Kernel(int l, const svm_node * const * x_, const svm_parameter& param)
+Kernel::Kernel(int l, svm_node * const * x_, const svm_parameter& param)
 :kernel_type(param.kernel_type), degree(param.degree),
  gamma(param.gamma), coef0(param.coef0)
 {

@@ -1,5 +1,6 @@
-FILES =	svm.class svm_model.class svm_node.class svm_parameter.class \
-	svm_problem.class svm_train.class svm_predict.class svm_toy.class
+FILES =	libsvm/svm.class libsvm/svm_model.class libsvm/svm_node.class \
+	libsvm/svm_parameter.class libsvm/svm_problem.class \
+	svm_train.class svm_predict.class svm_toy.class
 
 #JAVAC = jikes
 #JAVAC_FLAGS = -classpath /opt/IBMJava2-13/jre/lib/rt.jar
@@ -7,18 +8,16 @@ JAVAC = javac
 JAVAC_FLAGS =
 
 all: $(FILES)
-	jar cvf libsvm.jar *.class
+	jar cvf libsvm.jar *.class libsvm/*.class
 	
 %.class: %.java
 	$(JAVAC) $(JAVAC_FLAGS) $<
 
-svm.java: svm.m4
-	m4 svm.m4 > svm.java
+libsvm/svm.java: libsvm/svm.m4
+	m4 libsvm/svm.m4 > libsvm/svm.java
 
 clean:
-	rm -f *.class *.jar *~ svm.java
+	rm -f libsvm/*.class *.class *.jar libsvm/*~ *~ libsvm/svm.java
 
 dist: clean all
-	rm *.class
-
-	
+	rm *.class libsvm/*.class

@@ -21,7 +21,7 @@ char* readline(FILE *input)
 	while(strrchr(line,'\n') == NULL)
 	{
 		max_line_len *= 2;
-		line = realloc(line, max_line_len);
+		line = (char *) realloc(line, max_line_len);
 		len = strlen(line);
 		if(fgets(line+len,max_line_len-len,input) == NULL)
 			break;
@@ -63,7 +63,7 @@ void predict(FILE *input, FILE *output)
 			if(i>=max_nr_attr-1)	// need one more for index = -1
 			{
 				max_nr_attr *= 2;
-				x = realloc(x,max_nr_attr*sizeof(struct svm_node));
+				x = (struct svm_node *) realloc(x,max_nr_attr*sizeof(struct svm_node));
 			}
 		}
 
@@ -120,8 +120,8 @@ int main(int argc, char **argv)
 		exit(1);
 	}
 	
-	line = malloc(max_line_len*sizeof(char));
-	x = malloc(max_nr_attr*sizeof(struct svm_node));
+	line = (char *) malloc(max_line_len*sizeof(char));
+	x = (struct svm_node *) malloc(max_nr_attr*sizeof(struct svm_node));
 	predict(input,output);
 	svm_destroy_model(model);
 	free(line);
