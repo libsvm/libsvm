@@ -94,16 +94,16 @@ class svm_parameter:
 		return ret+'>'
 
 	def __del__(self):
-		svmc.delete_svm_parameter(self.param)
 		_free_int_array(self.weight_label)
 		_free_double_array(self.weight)
+		svmc.delete_svm_parameter(self.param)
 
 def _convert_to_svm_node_array(x):
 	""" convert a sequence or mapping to an svm_node array """
 	data = svmc.svm_node_array(len(x)+1)
 	svmc.svm_node_array_set(data,len(x),-1,0)
 	import operator
-	if operator.isMappingType(x):
+	if type(x) == type({}):
 		keys = x.keys()
 		keys.sort()
 		j = 0
@@ -160,6 +160,7 @@ class svm_model:
 		else:
 			# create model from problem and parameter
 			prob,param = arg1,arg2
+			self.prob = prob
 			if param.gamma == 0:
 				param.gamma = 1.0/prob.maxlen
 			self.model = svmc.svm_train(prob.prob,param.param)

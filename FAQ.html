@@ -9,7 +9,7 @@
     <h1><a href=index.html>LIBSVM</a> FAQ</h1>
 <!-- Created: Wed Apr 18 19:26:54 CST 2001 -->
 <!-- hhmts start -->
-Last modified: Thu Jun  6 22:14:35 CST 2002
+Last modified: Wed Jul 24 00:08:51 CST 2002
 <!-- hhmts end -->
 
 <hr>
@@ -56,7 +56,7 @@ The paper <a href="http://www.csie.ntu.edu.tw/~cjlin/papers/libsvm.pdf">LIBSVM
 : a library for support vector machines</a> discusses the implementation of
 libsvm in detail.
 <p><li> What are changes in previous versions? <br>
-See <a href="log">the change log</a>.
+See <a href="http://www.csie.ntu.edu.tw/~cjlin/libsvm/log">the change log</a>.
 <p><li> I have modified the source and would like to 
 build the graphic interface "svm-toy"
 on MS windows. How should I do it ?<br>
@@ -109,6 +109,14 @@ attribute.
 <h3>Training and prediction</h3>
 <ul>
 
+<p><li> Should I use float or double to store numbers in the cache ?<br>
+We have float as the default as you can store more numbers
+in the cache. 
+In general this is good enough but for few difficult
+cases (e.g. C very very large) where solutions are huge
+numbers, it might be possible that the numerical precision is not
+enough using only float.
+
 <p><li> Does libsvm have special treatments
 for linear SVM ?<br>
 
@@ -117,7 +125,7 @@ same way.
 Note that there are some possible
 tricks to save training/testing time if the
 linear kernel is used.
-Hence libsvm is not particularly efficient for linear SVM,
+Hence libsvm is NOT particularly efficient for linear SVM,
 especially for problems whose number of data is much larger
 than number of attributes.
 If you plan to solve this type of problems, you may want 
@@ -271,6 +279,17 @@ needed.
 The easiest way to have your own kernel is
 to  put the same code in these two
 subourines by replacing any kernel.
+
+<p><li>What method does libsvm use for mulsit-class SVM ?
+<br>
+It is one-against-one. We chose it after doing the following
+comparison:
+C.-W. Hsu and C.-J. Lin.
+<A HREF="http://www.csie.ntu.edu.tw/~cjlin/papers/multisvm.ps.gz">
+A comparison of methods 
+for multi-class support vector machines
+</A>, 
+<I>IEEE Transactions on Neural Networks</A></I>, 13(2002), 415-425.
 </ul>
 <hr>
 <h3>Graphic Interface</h3>
@@ -335,7 +354,7 @@ http://mailman.cs.uchicago.edu/pipermail/swig/2001-July/002744.html
 presented a similar example.
 -->
 <p><li>Except the python-C++ interface provided, could I use Jython to call libsvm ?
-<br> Yes, an example is <a href=jython>here</a>
+<br> Yes, an example is <a href=http://www.csie.ntu.edu.tw/~cjlin/libsvm/jython>here</a>
 </ul>
   </body>
 </html>

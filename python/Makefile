@@ -1,6 +1,6 @@
 CC = gcc
 SWIG ?= swig
-PYTHON_INCLUDEDIR ?= /usr/include/python2.2
+PYTHON_INCLUDEDIR ?= /usr/include/python
 CFLAGS = -O2 -I$(PYTHON_INCLUDEDIR) -I..
 LDFLAGS = -shared
 

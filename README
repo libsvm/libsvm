@@ -1,7 +1,9 @@
 Libsvm is a simple, easy-to-use, and efficient software for SVM
 classification and regression. It can solve C-SVM classification,
-nu-SVM classification, one-class-SVM, epsilon-SVM regression,
-and nu-SVM regression. This document explains the use of libsvm.
+nu-SVM classification, one-class-SVM, epsilon-SVM regression, and
+nu-SVM regression. It also provides an automatic model selection
+tool for C-SVM classification. This document explains the use of
+libsvm.
 
 Libsvm is available at 
 http://www.csie.ntu.edu.tw/~cjlin/libsvm
@@ -14,7 +16,7 @@ On Unix systems, type `make' to build the `svm-train' and `svm-predict'
 programs. Run them without arguments to show the usages of them.
 
 On other systems, consult `Makefile' to build them or use the pre-built
-binaries (Windows binaries are in the subdirectory `windows').
+binaries (Windows binaries are in the directory `windows').
 
 The format of training and testing data file is:
 
@@ -71,7 +73,7 @@ svm-toy:
 	(You can download it from http://www.gtk.org)
 	
 	We use Visual C++ to build the Windows version.
-	The pre-built Windows binaries are in the windows subdirectory.
+	The pre-built Windows binaries are in the windows directory.
 
 `svm-train' Usage
 =================
@@ -121,9 +123,7 @@ Tips on practical use
 =====================
 
 * Scale your data. For example, scale each attribute to [0,1] or [-1,+1].
-* For C-SVC, try small and large C, like 1 to 1000 and decide which are
-  better for your data by cross validation. For the better C's, try
-  several gamma's.
+* For C-SVC, consider using the model selection tool in the python directory.
 * nu in nu-SVC/one-class-SVM/nu-SVR approximates the fraction of training
   errors and support vectors.
 * If data for classification are unbalanced (e.g. many positive and
@@ -228,20 +228,20 @@ to classify new data.
 	{
 		int svm_type;
 		int kernel_type;
-		double degree;	// for poly
-		double gamma;	// for poly/rbf/sigmoid
-		double coef0;	// for poly/sigmoid
+		double degree;	/* for poly */
+		double gamma;	/* for poly/rbf/sigmoid */
+		double coef0;	/* for poly/sigmoid */
 
-		// these are for training only
-		double cache_size; // in MB
-		double eps;	// stopping criteria
-		double C;	// for C_SVC, EPSILON_SVR, and NU_SVR
-		int nr_weight;		// for C_SVC
-		int *weight_label;	// for C_SVC
-		double* weight;		// for C_SVC
-		double nu;	// for NU_SVC, ONE_CLASS, and NU_SVR
-		double p;	// for EPSILON_SVR
-		int shrinking;	// use the shrinking heuristics
+		/* these are for training only */
+		double cache_size; /* in MB */
+		double eps;	/* stopping criteria */
+		double C;	/* for C_SVC, EPSILON_SVR, and NU_SVR */
+		int nr_weight;		/* for C_SVC */
+		int *weight_label;	/* for C_SVC */
+		double* weight;		/* for C_SVC */
+		double nu;	/* for NU_SVC, ONE_CLASS, and NU_SVR */
+		double p;	/* for EPSILON_SVR */
+		int shrinking;	/* use the shrinking heuristics */
 	};
 
     svm_type can be one of C_SVC, NU_SVC, ONE_CLASS, EPSILON_SVR, NU_SVR.
@@ -321,7 +321,7 @@ Java version
 ============
 
 The precompiled java class archive `libsvm.jar' and its source files are
-in the java subdirectory. To run the programs, use
+in the java directory. To run the programs, use
 
 java -classpath libsvm.jar svm_train <arguments>
 java -classpath libsvm.jar svm_predict <arguments>
@@ -343,6 +343,11 @@ public class svm {
 
 The library is in the "libsvm" package.
 Note that in Java version, svm_node[] is not ended with a node whose index = -1.
+
+Model Selection
+===============
+
+See the README file in python directory.
 
 Python Interface
 ================

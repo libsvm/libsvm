@@ -329,9 +329,9 @@ double Kernel::k_function(const svm_node *x, const svm_node *y,
 		}
 		case SIGMOID:
 			return tanh(param.gamma*dot(x,y)+param.coef0);
+		default:
+			return 0;	/* Unreachable */
 	}
-	fprintf(stderr,"unknown kernel function.\n");
-	exit(1);
 }
 
 // Generalized SMO+SVMlight algorithm
