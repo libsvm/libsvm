@@ -8,6 +8,7 @@ class svm_train {
 	private svm_model model;
 	private String input_file_name;		// set by parse_command_line
 	private String model_file_name;		// set by parse_command_line
+	private String error_msg;
 	private int cross_validation = 0;
 	private int nr_fold;
 
@@ -52,7 +53,7 @@ class svm_train {
 		// random shuffle
 		for(i=0;i<prob.l;i++)
 		{
-			int j = (int)(Math.random()*(prob.l-i));
+			int j = i+(int)(Math.random()*(prob.l-i));
 			svm_node[] tx;
 			double ty;
 
@@ -139,6 +140,14 @@ class svm_train {
 	{
 		parse_command_line(argv);
 		read_problem();
+		error_msg = svm.svm_check_parameter(prob,param);
+
+		if(error_msg != null)
+		{
+			System.err.print("Error: "+error_msg+"\n");
+			System.exit(1);
+		}
+
 		if(cross_validation != 0)
 		{
 			do_cross_validation();

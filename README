@@ -293,6 +293,14 @@ to classify new data.
     For a regression model, the function value of x calculated using
     the model is returned. For one-class model, +1 or -1 is returned.
 
+- Function: const char *svm_check_parameter(const struct svm_problem *prob,
+                                            const struct svm_parameter *param);
+
+    This function checks whether the parameters are within the feasible
+    range of the problem. This function should be called before calling
+    svm_train(). It returns NULL if the parameters are feasible, 
+    otherwise an error message is returned. 
+
 - Function: int svm_save_model(const char *model_file_name,
 			       const struct svm_model *model);
 
@@ -330,6 +338,7 @@ public class svm {
 	public static double svm_predict(svm_model model, svm_node[] x);
 	public static void svm_save_model(String model_file_name, svm_model model) throws IOException
 	public static svm_model svm_load_model(String model_file_name) throws IOException
+	public static String svm_check_parameter(svm_problem prob, svm_parameter param);
 }
 
 The library is in the "libsvm" package.

@@ -51,9 +51,17 @@ int main(int argc, char **argv)
 {
 	char input_file_name[1024];
 	char model_file_name[1024];
+	const char *error_msg;
 
 	parse_command_line(argc, argv, input_file_name, model_file_name);
 	read_problem(input_file_name);
+	error_msg = svm_check_parameter(&prob,&param);
+
+	if(error_msg)
+	{
+		fprintf(stderr,"Error: %s\n",error_msg);
+		exit(1);
+	}
 
 	if(cross_validation)
 	{
@@ -83,7 +91,7 @@ void do_cross_validation()
 	// random shuffle
 	for(i=0;i<prob.l;i++)
 	{
-		int j = rand()%(prob.l-i);
+		int j = i+rand()%(prob.l-i);
 		struct svm_node *tx;
 		double ty;
 			

@@ -3,6 +3,38 @@ import svmc
 from svmc import C_SVC, NU_SVC, ONE_CLASS, EPSILON_SVR, NU_SVR
 from svmc import LINEAR, POLY, RBF, SIGMOID
 
+def _int_array(seq):
+	size = len(seq)
+	array = svmc.int_array(size)
+	i = 0
+	for item in seq:
+		svmc.int_set(array,i,item)
+		i = i + 1
+	return array
+
+def _double_array(seq):
+	size = len(seq)
+	array = svmc.double_array(size)
+	i = 0
+	for item in seq:
+		svmc.double_set(array,i,item)
+		i = i + 1
+	return array
+
+def _free_int_array(x):
+	if x != 'NULL':
+		svmc.int_destroy(x)
+
+def _free_double_array(x):
+	if x != 'NULL':
+		svmc.double_destroy(x)
+
+def _int_array_to_list(x,n):
+	return map(svmc.int_get,[x]*n,range(n))
+
+def _double_array_to_list(x,n):
+	return map(svmc.double_get,[x]*n,range(n))
+
 class svm_parameter:
 	
 	# default values
@@ -19,8 +51,8 @@ class svm_parameter:
 	'p' : 0.1,
 	'shrinking' : 1,
 	'nr_weight' : 0,
-	#'param.weight_label' : 'NULL',
-	#'param.weight' : 'NULL',
+	'weight_label' : [],
+	'weight' : [],
 	}
 
 	def __init__(self,**kw):
@@ -35,6 +67,16 @@ class svm_parameter:
 		return get_func(self.param)
 
 	def __setattr__(self,attr,val):
+
+		if attr == 'weight_label':
+			self.__dict__['weight_label_len'] = len(val)
+			val = _int_array(val)
+			_free_int_array(self.weight_label)
+		elif attr == 'weight':
+			self.__dict__['weight_len'] = len(val)
+			val = _double_array(val)
+			_free_double_array(self.weight)
+
 		set_func = getattr(svmc,'svm_parameter_%s_set' % (attr))
 		set_func(self.param,val)
 
@@ -43,11 +85,18 @@ class svm_parameter:
 		for name in dir(svmc):
 			if name[:len('svm_parameter_')] == 'svm_parameter_' and name[-len('_set'):] == '_set':
 				attr = name[len('svm_parameter_'):-len('_set')]
-				ret = ret+' %s = %s,' % (attr,getattr(self,attr))
+				if attr == 'weight_label':
+					ret = ret+' weight_label = %s,' % _int_array_to_list(self.weight_label,self.weight_label_len)
+				elif attr == 'weight':
+					ret = ret+' weight = %s,' % _double_array_to_list(self.weight,self.weight_len)
+				else:
+					ret = ret+' %s = %s,' % (attr,getattr(self,attr))
 		return ret+'>'
 
 	def __del__(self):
 		svmc.delete_svm_parameter(self.param)
+		_free_int_array(self.weight_label)
+		_free_double_array(self.weight)
 
 def _convert_to_svm_node_array(x):
 	""" convert a sequence or mapping to an svm_node array """

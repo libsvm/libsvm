@@ -957,6 +957,34 @@ static PyObject *_wrap_svm_destroy_model(PyObject *self, PyObject *args) {
     return _resultobj;
 }
 
+static PyObject *_wrap_svm_check_parameter(PyObject *self, PyObject *args) {
+    PyObject * _resultobj;
+    char * _result;
+    struct svm_problem * _arg0;
+    struct svm_parameter * _arg1;
+    char * _argc0 = 0;
+    char * _argc1 = 0;
+
+    self = self;
+    if(!PyArg_ParseTuple(args,"ss:svm_check_parameter",&_argc0,&_argc1)) 
+        return NULL;
+    if (_argc0) {
+        if (SWIG_GetPtr(_argc0,(void **) &_arg0,"_struct_svm_problem_p")) {
+            PyErr_SetString(PyExc_TypeError,"Type error in argument 1 of svm_check_parameter. Expected _struct_svm_problem_p.");
+        return NULL;
+        }
+    }
+    if (_argc1) {
+        if (SWIG_GetPtr(_argc1,(void **) &_arg1,"_struct_svm_parameter_p")) {
+            PyErr_SetString(PyExc_TypeError,"Type error in argument 2 of svm_check_parameter. Expected _struct_svm_parameter_p.");
+        return NULL;
+        }
+    }
+    _result = (char *)svm_check_parameter(_arg0,_arg1);
+    _resultobj = Py_BuildValue("s", _result);
+    return _resultobj;
+}
+
 static PyObject *_wrap_int_array(PyObject *self, PyObject *args) {
     PyObject * _resultobj;
     int * _result;
@@ -2379,6 +2407,7 @@ static PyMethodDef svmcMethods[] = {
 	 { "int_get", _wrap_int_get, 1 },
 	 { "int_destroy", _wrap_int_destroy, 1 },
 	 { "int_array", _wrap_int_array, 1 },
+	 { "svm_check_parameter", _wrap_svm_check_parameter, 1 },
 	 { "svm_destroy_model", _wrap_svm_destroy_model, 1 },
 	 { "svm_predict", _wrap_svm_predict, 1 },
 	 { "svm_load_model", _wrap_svm_load_model, 1 },
