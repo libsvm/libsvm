@@ -4,10 +4,15 @@
 #include <ctype.h>
 #include <float.h>
 #include <string.h>
+#include <stdarg.h>
 #include "svm.h"
 typedef signed char schar;
+#ifndef min
 template <class T> inline T min(T x,T y) { return (x<y)?x:y; }
+#endif
+#ifndef max
 template <class T> inline T max(T x,T y) { return (x>y)?x:y; }
+#endif
 template <class T> inline void swap(T& x, T& y) { T t=x; x=y; y=t; }
 template <class S, class T> inline void clone(T*& dst, S* src, int n)
 {
@@ -16,6 +21,22 @@ template <class S, class T> inline void clone(T*& dst, S* src, int n)
 }
 #define INF HUGE_VAL
 #define Malloc(type,n) (type *)malloc((n)*sizeof(type))
+#if 1
+void info(char *fmt,...)
+{
+	va_list ap;
+	va_start(ap,fmt);
+	vprintf(fmt,ap);
+	va_end(ap);
+}
+void info_flush()
+{
+	fflush(stdout);
+}
+#else
+void info(char *fmt,...) {}
+void info_flush() {}
+#endif
 
 //
 // Kernel Cache
@@ -311,9 +332,10 @@ double Kernel::k_function(const svm_node *x, const svm_node *y,
 		case SIGMOID:
 			return tanh(param.gamma*dot(x,y)+param.coef0);
 		default:
-			fprintf(stderr,"unknown kernel function.\n");
-			exit(1);
+			break;
 	}
+	fprintf(stderr,"unknown kernel function.\n");
+	exit(1);
 }
 
 // Generalized SMO+SVMlight algorithm
@@ -321,13 +343,14 @@ double Kernel::k_function(const svm_node *x, const svm_node *y,
 //
 //	min 0.5(\alpha^T Q \alpha) + b^T \alpha
 //
-//		0 <= alpha_i <= C
 //		y^T \alpha = \delta
 //		y_i = +1 or -1
+//		0 <= alpha_i <= Cp for y_i = 1
+//		0 <= alpha_i <= Cn for y_i = -1
 //
 // Given:
 //
-//	Q, b, y, C, and an initial feasible point \alpha
+//	Q, b, y, Cp, Cn, and an initial feasible point \alpha
 //	l is the size of vectors and matrices
 //	eps is the stopping criterion
 //
@@ -337,9 +360,18 @@ class Solver {
 public:
 	Solver() {};
 	virtual ~Solver() {};
+
+	struct SolutionInfo {
+		double obj;
+		double rho;
+		double upper_bound_p;
+		double upper_bound_n;
+		double r;	// for Solver_NU
+	};
+
 	void Solve(int l, const Kernel& Q, const double *b_, const schar *y_,
-		   double *alpha_, double C, double eps,
-		   double& obj, double& rho, int shrinking);
+		   double *alpha_, double Cp, double Cn, double eps,
+		   SolutionInfo* si, int shrinking);
 protected:
 	int active_size;
 	schar *y;
@@ -349,16 +381,20 @@ protected:
 	double *alpha;
 	const Kernel *Q;
 	double eps;
-	double C;
+	double Cp,Cn;
 	double *b;
 	int *active_set;
 	double *G_bar;		// gradient, if we treat free variables as 0
 	int l;
-	bool unshrinked;		// XXX
+	bool unshrinked;	// XXX
 
+	double get_C(int i)
+	{
+		return (y[i] > 0)? Cp : Cn;
+	}
 	void update_alpha_status(int i)
 	{
-		if(alpha[i] >= C)
+		if(alpha[i] >= get_C(i))
 			alpha_status[i] = UPPER_BOUND;
 		else if(alpha[i] <= 0)
 			alpha_status[i] = LOWER_BOUND;
@@ -394,7 +430,7 @@ void Solver::reconstruct_gradient()
 
 	int i;
 	for(i=active_size;i<l;i++)
-		G[i] = C * G_bar[i] + b[i];
+		G[i] = G_bar[i] + b[i];
 	
 	for(i=0;i<active_size;i++)
 		if(is_free(i))
@@ -407,15 +443,16 @@ void Solver::reconstruct_gradient()
 }
 
 void Solver::Solve(int l, const Kernel& Q, const double *b_, const schar *y_,
-		   double *alpha_, double C, double eps,
-		   double& obj, double& rho, int shrinking)
+		   double *alpha_, double Cp, double Cn, double eps,
+		   SolutionInfo* si, int shrinking)
 {
 	this->l = l;
 	this->Q = &Q;
 	clone(b, b_,l);
 	clone(y, y_,l);
 	clone(alpha,alpha_,l);
-	this->C = C;
+	this->Cp = Cp;
+	this->Cn = Cn;
 	this->eps = eps;
 	unshrinked = false;
 
@@ -454,7 +491,7 @@ void Solver::Solve(int l, const Kernel& Q, const double *b_, const schar *y_,
 					G[j] += alpha_i*Q_i[j];
 				if(is_upper_bound(i))
 					for(j=0;j<l;j++)
-						G_bar[j] += Q_i[j];
+						G_bar[j] += get_C(i) * Q_i[j];
 			}
 	}
 
@@ -471,7 +508,7 @@ void Solver::Solve(int l, const Kernel& Q, const double *b_, const schar *y_,
 		{
 			counter = min(l,1000);
 			if(shrinking) do_shrinking();
-			fprintf(stderr,".");
+			info("."); info_flush();
 		}
 
 		int i,j;
@@ -481,7 +518,7 @@ void Solver::Solve(int l, const Kernel& Q, const double *b_, const schar *y_,
 			reconstruct_gradient();
 			// reset active set size and check
 			active_size = l;
-			fprintf(stderr,"*");
+			info("*"); info_flush();
 			if(select_working_set(i,j)!=0)
 				break;
 			else
@@ -495,6 +532,9 @@ void Solver::Solve(int l, const Kernel& Q, const double *b_, const schar *y_,
 		const double *Q_i = Q.get_Q(i,active_size);
 		const double *Q_j = Q.get_Q(j,active_size);
 
+		double C_i = get_C(i);
+		double C_j = get_C(j);
+
 		double old_alpha_i = alpha[i];
 		double old_alpha_j = alpha[j];
 
@@ -504,14 +544,10 @@ void Solver::Solve(int l, const Kernel& Q, const double *b_, const schar *y_,
 			double diff = alpha[i] - alpha[j];
 			alpha[i] += delta;
 			alpha[j] += delta;
+			
 			if(diff > 0)
 			{
-				if(alpha[i] > C)
-				{
-					alpha[i] = C;
-					alpha[j] = C - diff;
-				}
-				else if(alpha[j] < 0)
+				if(alpha[j] < 0)
 				{
 					alpha[j] = 0;
 					alpha[i] = diff;
@@ -519,15 +555,26 @@ void Solver::Solve(int l, const Kernel& Q, const double *b_, const schar *y_,
 			}
 			else
 			{
-				if(alpha[j] > C)
-				{
-					alpha[j] = C;
-					alpha[i] = C + diff;
-				}
-				else if(alpha[i] < 0)
+				if(alpha[i] < 0)
 				{
 					alpha[i] = 0;
 					alpha[j] = -diff;
+				}
+			}
+			if(diff > C_i - C_j)
+			{
+				if(alpha[i] > C_i)
+				{
+					alpha[i] = C_i;
+					alpha[j] = C_i - diff;
+				}
+			}
+			else
+			{
+				if(alpha[j] > C_j)
+				{
+					alpha[j] = C_j;
+					alpha[i] = C_j + diff;
 				}
 			}
 		}
@@ -537,17 +584,28 @@ void Solver::Solve(int l, const Kernel& Q, const double *b_, const schar *y_,
 			double sum = alpha[i] + alpha[j];
 			alpha[i] -= delta;
 			alpha[j] += delta;
-			if(sum > C)
+			if(sum > C_i)
 			{
-				if(alpha[i] > C)
+				if(alpha[i] > C_i)
 				{
-					alpha[i] = C;
-					alpha[j] = sum - C;
+					alpha[i] = C_i;
+					alpha[j] = sum - C_i;
 				}
-				else if(alpha[j] > C)
+			}
+			else
+			{
+				if(alpha[j] < 0)
 				{
-					alpha[j] = C;
-					alpha[i] = sum - C;
+					alpha[j] = 0;
+					alpha[i] = sum;
+				}
+			}
+			if(sum > C_j)
+			{
+				if(alpha[j] > C_j)
+				{
+					alpha[j] = C_j;
+					alpha[i] = sum - C_j;
 				}
 			}
 			else
@@ -556,11 +614,6 @@ void Solver::Solve(int l, const Kernel& Q, const double *b_, const schar *y_,
 				{
 					alpha[i] = 0;
 					alpha[j] = sum;
-				}
-				else if(alpha[j] < 0)
-				{
-					alpha[j] = 0;
-					alpha[i] = sum;
 				}
 			}
 		}
@@ -588,10 +641,10 @@ void Solver::Solve(int l, const Kernel& Q, const double *b_, const schar *y_,
 				Q_i = Q.get_Q(i,l);
 				if(ui)
 					for(k=0;k<l;k++)
-						G_bar[k] -= Q_i[k];
+						G_bar[k] -= C_i * Q_i[k];
 				else
 					for(k=0;k<l;k++)
-						G_bar[k] += Q_i[k];
+						G_bar[k] += C_i * Q_i[k];
 			}
 
 			if(uj != is_upper_bound(j))
@@ -599,17 +652,17 @@ void Solver::Solve(int l, const Kernel& Q, const double *b_, const schar *y_,
 				Q_j = Q.get_Q(j,l);
 				if(uj)
 					for(k=0;k<l;k++)
-						G_bar[k] -= Q_j[k];
+						G_bar[k] -= C_j * Q_j[k];
 				else
 					for(k=0;k<l;k++)
-						G_bar[k] += Q_j[k];
+						G_bar[k] += C_j * Q_j[k];
 			}
 		}
 	}
 
 	// calculate rho
 
-	rho = calculate_rho();
+	si->rho = calculate_rho();
 
 	// calculate objective value
 	{
@@ -618,7 +671,7 @@ void Solver::Solve(int l, const Kernel& Q, const double *b_, const schar *y_,
 		for(i=0;i<l;i++)
 			v += alpha[i] * (G[i] + b[i]);
 
-		obj = v/2;
+		si->obj = v/2;
 	}
 
 	// put back the solution
@@ -635,7 +688,10 @@ void Solver::Solve(int l, const Kernel& Q, const double *b_, const schar *y_,
 				// or Q.swap_index(i,active_set[i]);
 	}*/
 
-	printf("\noptimization finished, #iter = %d\n",iter);
+	si->upper_bound_p = Cp;
+	si->upper_bound_n = Cn;
+
+	info("\noptimization finished, #iter = %d\n",iter);
 
 	delete[] b;
 	delete[] y;
@@ -824,18 +880,17 @@ class Solver_NU : public Solver
 public:
 	Solver_NU() {}
 	void Solve(int l, const Kernel& Q, const double *b, const schar *y,
-		   double *alpha, double C, double eps,
-		   double& obj, double& rho, double& r_,
-		   int shrinking)
+		   double *alpha, double Cp, double Cn, double eps,
+		   SolutionInfo* si, int shrinking)
 	{
-		r = &r_;
-		Solver::Solve(l,Q,b,y,alpha,C,eps,obj,rho,shrinking);
+		this->si = si;
+		Solver::Solve(l,Q,b,y,alpha,Cp,Cn,eps,si,shrinking);
 	}
 private:
+	SolutionInfo *si;
 	int select_working_set(int &i, int &j);
 	double calculate_rho();
 	void do_shrinking();
-	double* r;
 };
 
 int Solver_NU::select_working_set(int &out_i, int &out_j)
@@ -1051,7 +1106,7 @@ double Solver_NU::calculate_rho()
 	else
 		r2 = (ub2+lb2)/2;
 	
-	*r = (r1+r2)/2;
+	si->r = (r1+r2)/2;
 	return (r1-r2)/2;
 }
 
@@ -1195,7 +1250,7 @@ private:
 //
 static void solve_c_svc(
 	const svm_problem *prob, const svm_parameter* param,
-	double *alpha, double& obj, double& rho, double& upper_bound)
+	double *alpha, Solver::SolutionInfo* si, double Cp, double Cn)
 {
 	int l = prob->l;
 	double *minus_ones = new double[l];
@@ -1212,18 +1267,16 @@ static void solve_c_svc(
 
 	Solver s;
 	s.Solve(l, SVC_Q(*prob,*param,y), minus_ones, y,
-		alpha, param->C, param->eps, obj, rho, param->shrinking);
+		alpha, Cp, Cn, param->eps, si, param->shrinking);
 
 	double sum_alpha=0;
 	for(i=0;i<l;i++)
 		sum_alpha += alpha[i];
 
-	printf("nu = %f\n", sum_alpha/(param->C*prob->l));
+	info("nu = %f\n", sum_alpha/(param->C*prob->l));
 
 	for(i=0;i<l;i++)
 		alpha[i] *= y[i];
-
-	upper_bound = param->C;
 
 	delete[] minus_ones;
 	delete[] y;
@@ -1231,7 +1284,7 @@ static void solve_c_svc(
 
 static void solve_nu_svc(
 	const svm_problem *prob, const svm_parameter *param,
-	double *alpha, double& obj, double& rho, double& upper_bound)
+	double *alpha, Solver::SolutionInfo* si)
 {
 	int i;
 	int l = prob->l;
@@ -1279,19 +1332,20 @@ static void solve_nu_svc(
 	for(i=0;i<l;i++)
 		zeros[i] = 0;
 
-	double r;
 	Solver_NU s;
 	s.Solve(l, SVC_Q(*prob,*param,y), zeros, y,
-		alpha, 1.0, param->eps, obj, rho, r, param->shrinking);
+		alpha, 1.0, 1.0, param->eps, si,  param->shrinking);
+	double r = si->r;
 
-	printf("C = %f\n",1/r);
+	info("C = %f\n",1/r);
 
 	for(i=0;i<l;i++)
 		alpha[i] *= y[i]/r;
 
-	rho /= r;
-	obj /= (r*r);
-	upper_bound = 1/r;
+	si->rho /= r;
+	si->obj /= (r*r);
+	si->upper_bound_p = 1/r;
+	si->upper_bound_n = 1/r;
 
 	delete[] y;
 	delete[] zeros;
@@ -1299,7 +1353,7 @@ static void solve_nu_svc(
 
 static void solve_one_class(
 	const svm_problem *prob, const svm_parameter *param,
-	double *alpha, double& obj, double& rho, double& upper_bound)
+	double *alpha, Solver::SolutionInfo* si)
 {
 	int l = prob->l;
 	double *zeros = new double[l];
@@ -1326,9 +1380,7 @@ static void solve_one_class(
 
 	Solver s;
 	s.Solve(l, ONE_CLASS_Q(*prob,*param), zeros, ones,
-		alpha, 1.0, param->eps, obj, rho, param->shrinking);
-
-	upper_bound = 1;
+		alpha, 1.0, 1.0, param->eps, si, param->shrinking);
 
 	delete[] zeros;
 	delete[] ones;
@@ -1336,7 +1388,7 @@ static void solve_one_class(
 
 static void solve_epsilon_svr(
 	const svm_problem *prob, const svm_parameter *param,
-	double *alpha, double& obj, double& rho, double & upper_bound)
+	double *alpha, Solver::SolutionInfo* si)
 {
 	int l = prob->l;
 	double *alpha2 = new double[2*l];
@@ -1357,7 +1409,7 @@ static void solve_epsilon_svr(
 
 	Solver s;
 	s.Solve(2*l, SVR_Q(*prob,*param), linear_term, y,
-		alpha2, param->C, param->eps, obj, rho, param->shrinking);
+		alpha2, param->C, param->C, param->eps, si, param->shrinking);
 
 	double sum_alpha = 0;
 	for(i=0;i<l;i++)
@@ -1365,9 +1417,7 @@ static void solve_epsilon_svr(
 		alpha[i] = alpha2[i] - alpha2[i+l];
 		sum_alpha += fabs(alpha[i]);
 	}
-	printf("nu = %f\n",sum_alpha/(param->C*l));
-
-	upper_bound = param->C;
+	info("nu = %f\n",sum_alpha/(param->C*l));
 
 	delete[] alpha2;
 	delete[] linear_term;
@@ -1376,7 +1426,7 @@ static void solve_epsilon_svr(
 
 static void solve_nu_svr(
 	const svm_problem *prob, const svm_parameter *param,
-	double *alpha, double& obj, double& rho, double & upper_bound)
+	double *alpha, Solver::SolutionInfo* si)
 {
 	if(param->nu < 0 || param->nu > 1)
 	{
@@ -1404,17 +1454,14 @@ static void solve_nu_svr(
 		y[i+l] = -1;
 	}
 
-	double r;
 	Solver_NU s;
 	s.Solve(2*l, SVR_Q(*prob,*param), linear_term, y,
-		alpha2, C, param->eps, obj, rho, r, param->shrinking);
+		alpha2, C, C, param->eps, si, param->shrinking);
 
-	printf("epsilon = %f\n",-r);
+	info("epsilon = %f\n",-si->r);
 
 	for(i=0;i<l;i++)
 		alpha[i] = alpha2[i] - alpha2[i+l];
-
-	upper_bound = C;
 
 	delete[] alpha2;
 	delete[] linear_term;
@@ -1430,30 +1477,32 @@ struct decision_function
 	double rho;	
 };
 
-decision_function svm_train_one(const svm_problem *prob, const svm_parameter *param)
+decision_function svm_train_one(
+	const svm_problem *prob, const svm_parameter *param,
+	double Cp, double Cn)
 {
 	double *alpha = Malloc(double,prob->l);
-	double obj, rho, upper_bound;
+	Solver::SolutionInfo si;
 	switch(param->svm_type)
 	{
 		case C_SVC:
-			solve_c_svc(prob,param,alpha,obj,rho,upper_bound);
+			solve_c_svc(prob,param,alpha,&si,Cp,Cn);
 			break;
 		case NU_SVC:
-			solve_nu_svc(prob,param,alpha,obj,rho,upper_bound);
+			solve_nu_svc(prob,param,alpha,&si);
 			break;
 		case ONE_CLASS:
-			solve_one_class(prob,param,alpha,obj,rho,upper_bound);
+			solve_one_class(prob,param,alpha,&si);
 			break;
 		case EPSILON_SVR:
-			solve_epsilon_svr(prob,param,alpha,obj,rho,upper_bound);
+			solve_epsilon_svr(prob,param,alpha,&si);
 			break;
 		case NU_SVR:
-			solve_nu_svr(prob,param,alpha,obj,rho,upper_bound);
+			solve_nu_svr(prob,param,alpha,&si);
 			break;
 	}
 
-	printf("obj = %f, rho = %f\n",obj,rho);
+	info("obj = %f, rho = %f\n",si.obj,si.rho);
 
 	// output SVs
 
@@ -1464,15 +1513,24 @@ decision_function svm_train_one(const svm_problem *prob, const svm_parameter *pa
 		if(fabs(alpha[i]) > 0)
 		{
 			++nSV;
-			if(fabs(alpha[i]) >= upper_bound)
-				++nBSV;
+			if(prob->y[i] > 0)
+			{
+				if(fabs(alpha[i]) >= si.upper_bound_p)
+					++nBSV;
+			}
+			else
+			{
+				if(fabs(alpha[i]) >= si.upper_bound_n)
+					++nBSV;
+			}
 		}
 	}
-	printf("nSV = %d, nBSV = %d\n",nSV,nBSV);
+
+	info("nSV = %d, nBSV = %d\n",nSV,nBSV);
 
 	decision_function f;
 	f.alpha = alpha;
-	f.rho = rho;
+	f.rho = si.rho;
 	return f;
 }
 
@@ -1516,7 +1574,7 @@ svm_model *svm_train(const svm_problem *prob, const svm_parameter *param)
 		model->label = NULL;
 		model->nSV = NULL;
 		model->sv_coef = Malloc(double *,1);
-		decision_function f = svm_train_one(prob,param);
+		decision_function f = svm_train_one(prob,param,0,0);
 		model->rho = Malloc(double,1);
 		model->rho[0] = f.rho;
 
@@ -1594,6 +1652,23 @@ svm_model *svm_train(const svm_problem *prob, const svm_parameter *param)
 		for(i=1;i<nr_class;i++)
 			start[i] = start[i-1]+count[i-1];
 
+		// calculate weighted C
+
+		double *weighted_C = Malloc(double, nr_class);
+		for(i=0;i<nr_class;i++)
+			weighted_C[i] = param->C;
+		for(i=0;i<param->nr_weight;i++)
+		{	
+			int j;
+			for(j=0;j<nr_class;j++)
+				if(param->weight_label[i] == label[j])
+					break;
+			if(j == nr_class)
+				fprintf(stderr,"warning: class label %d specified in weight is not found\n", param->weight_label[i]);
+			else
+				weighted_C[j] *= param->weight[i];
+		}
+
 		// train n*(n-1)/2 models
 		
 		bool *nonzero = Malloc(bool,l);
@@ -1623,7 +1698,7 @@ svm_model *svm_train(const svm_problem *prob, const svm_parameter *param)
 					sub_prob.y[ci+k] = -1;
 				}
 				
-				f[p] = svm_train_one(&sub_prob,param);
+				f[p] = svm_train_one(&sub_prob,param,weighted_C[i],weighted_C[j]);
 				for(k=0;k<ci;k++)
 					if(!nonzero[si+k] && fabs(f[p].alpha[k]) > 0)
 						nonzero[si+k] = true;
@@ -1663,7 +1738,7 @@ svm_model *svm_train(const svm_problem *prob, const svm_parameter *param)
 			nz_count[i] = nSV;
 		}
 		
-		printf("Total nSV = %d\n",total_sv);
+		info("Total nSV = %d\n",total_sv);
 
 		model->l = total_sv;
 		model->SV = Malloc(svm_node *,total_sv);
@@ -1710,6 +1785,7 @@ svm_model *svm_train(const svm_problem *prob, const svm_parameter *param)
 		free(index);
 		free(start);
 		free(x);
+		free(weighted_C);
 		free(nonzero);
 		for(i=0;i<nr_class*(nr_class-1)/2;i++)
 			free(f[i].alpha);

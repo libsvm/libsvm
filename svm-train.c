@@ -3,6 +3,7 @@
 #include <string.h>
 #include <ctype.h>
 #include "svm.h"
+#define Malloc(type,n) (type *)malloc((n)*sizeof(type))
 
 void exit_with_help()
 {
@@ -16,7 +17,7 @@ void exit_with_help()
 	"	3 -- epsilon-SVR\n"
 	"	4 -- nu-SVR\n"
 	"-t kernel_type : set type of kernel function (default 2)\n"
-	"	0 -- linear\n"
+	"	0 -- linear: u'*v\n"
 	"	1 -- polynomial: (gamma*u'*v + coef0)^degree\n"
 	"	2 -- radial basis function: exp(-gamma*|u-v|^2)\n"
 	"	3 -- sigmoid: tanh(gamma*u'*v + coef0)\n"
@@ -29,17 +30,22 @@ void exit_with_help()
 	"-m cachesize : set cache memory size in MB (default 40)\n"
 	"-e epsilon : set tolerance of termination criterion (default 0.001)\n"
 	"-h shrinking: whether to use the shrinking heuristics, 0 or 1 (default 1)\n"
+	"-wi weight: set the parameter C of class i to weight*C, for C-SVC (default 1)\n"
+	"-v n: n-fold cross validation mode\n"
 	);
 	exit(1);
 }
 
 void parse_command_line(int argc, char **argv, char *input_file_name, char *model_file_name);
 void read_problem(const char *filename);
+void do_cross_validation();
 
 struct svm_parameter param;		// set by parse_command_line
 struct svm_problem prob;		// set by read_problem
 struct svm_model *model;
 struct svm_node *x_space;
+int cross_validation = 0;
+int nr_fold;
 
 int main(int argc, char **argv)
 {
@@ -49,15 +55,120 @@ int main(int argc, char **argv)
 	parse_command_line(argc, argv, input_file_name, model_file_name);
 	read_problem(input_file_name);
 
-	model = svm_train(&prob,&param);
-	svm_save_model(model_file_name,model);
-	svm_destroy_model(model);
+	if(cross_validation)
+	{
+		do_cross_validation();
+	}
+	else
+	{
+		model = svm_train(&prob,&param);
+		svm_save_model(model_file_name,model);
+		svm_destroy_model(model);
+	}
 
 	free(prob.y);
 	free(prob.x);
 	free(x_space);
 
 	return 0;
+}
+
+void do_cross_validation()
+{
+	int i;
+	int total_correct = 0;
+	double total_error = 0;
+	double sumv = 0, sumy = 0, sumvv = 0, sumyy = 0, sumvy = 0;
+
+	// random shuffle
+	for(i=0;i<prob.l;i++)
+	{
+		int j = rand()%(prob.l-i);
+		struct svm_node *tx;
+		double ty;
+			
+		tx = prob.x[i];
+		prob.x[i] = prob.x[j];
+		prob.x[j] = tx;
+
+		ty = prob.y[i];
+		prob.y[i] = prob.y[j];
+		prob.y[j] = ty;
+	}
+
+	for(i=0;i<nr_fold;i++)
+	{
+		int begin = i*prob.l/nr_fold;
+		int end = (i+1)*prob.l/nr_fold;
+		int j,k;
+		struct svm_problem subprob;
+
+		subprob.l = prob.l-(end-begin);
+		subprob.x = Malloc(struct svm_node*,subprob.l);
+		subprob.y = Malloc(double,subprob.l);
+			
+		k=0;
+		for(j=0;j<begin;j++)
+		{
+			subprob.x[k] = prob.x[j];
+			subprob.y[k] = prob.y[j];
+			++k;
+		}
+		for(j=end;j<prob.l;j++)
+		{
+			subprob.x[k] = prob.x[j];
+			subprob.y[k] = prob.y[j];
+			++k;
+		}
+
+		if(param.svm_type == EPSILON_SVR ||
+		   param.svm_type == NU_SVR)
+		{
+			struct svm_model *submodel = svm_train(&subprob,&param);
+			double error = 0;
+			for(j=begin;j<end;j++)
+			{
+				double v = svm_predict(submodel,prob.x[j]);
+				double y = prob.y[j];
+				error += (v-y)*(v-y);
+				sumv += v;
+				sumy += y;
+				sumvv += v*v;
+				sumyy += y*y;
+				sumvy += v*y;
+			}
+			svm_destroy_model(submodel);
+			printf("Mean squared error = %g\n", error/(end-begin));
+			total_error += error;			
+		}
+		else
+		{
+			struct svm_model *submodel = svm_train(&subprob,&param);
+			int correct = 0;
+			for(j=begin;j<end;j++)
+			{
+				double v = svm_predict(submodel,prob.x[j]);
+				if(v == prob.y[j])
+					++correct;
+			}
+			svm_destroy_model(submodel);
+			printf("Accuracy = %g%% (%d/%d)\n", 100.0*correct/(end-begin),correct,(end-begin));
+			total_correct += correct;
+		}
+
+		free(subprob.x);
+		free(subprob.y);
+	}		
+	if(param.svm_type == EPSILON_SVR || param.svm_type == NU_SVR)
+	{
+		printf("Cross Validation Mean squared error = %g\n",total_error/prob.l);
+		printf("Cross Validation Squared correlation coefficient = %g\n",
+			((prob.l*sumvy-sumv*sumy)*(prob.l*sumvy-sumv*sumy))/
+			((prob.l*sumvv-sumv*sumv)*(prob.l*sumyy-sumy*sumy))
+			);
+	}
+	else
+		printf("Cross Validation Accuracy = %g%%\n",100.0*total_correct/prob.l);
 }
 
 void parse_command_line(int argc, char **argv, char *input_file_name, char *model_file_name)
@@ -76,6 +187,9 @@ void parse_command_line(int argc, char **argv, char *input_file_name, char *mode
 	param.eps = 1e-3;
 	param.p = 0.1;
 	param.shrinking = 1;
+	param.nr_weight = 0;
+	param.weight_label = NULL;
+	param.weight = NULL;
 
 	// parse options
 	for(i=1;i<argc;i++)
@@ -116,6 +230,22 @@ void parse_command_line(int argc, char **argv, char *input_file_name, char *mode
 				break;
 			case 'h':
 				param.shrinking = atoi(argv[i]);
+				break;
+			case 'v':
+				cross_validation = 1;
+				nr_fold = atoi(argv[i]);
+				if(nr_fold < 2)
+				{
+					fprintf(stderr,"n-fold cross validation: n must >= 2\n");
+					exit_with_help();
+				}
+				break;
+			case 'w':
+				++param.nr_weight;
+				param.weight_label = (int *)realloc(param.weight_label,sizeof(int)*param.nr_weight);
+				param.weight = (double *)realloc(param.weight,sizeof(double)*param.nr_weight);
+				param.weight_label[param.nr_weight-1] = atoi(&argv[i-1][2]);
+				param.weight[param.nr_weight-1] = atof(argv[i]);
 				break;
 			default:
 				fprintf(stderr,"unknown option\n");
@@ -179,9 +309,9 @@ void read_problem(const char *filename)
 out:
 	rewind(fp);
 
-	prob.y = (double *)malloc(sizeof(double)*prob.l);
-	prob.x = (struct svm_node **)malloc(sizeof(struct svm_node *)*prob.l);
-	x_space = (struct svm_node *)malloc(sizeof(struct svm_node)*elements);
+	prob.y = Malloc(double,prob.l);
+	prob.x = Malloc(struct svm_node *,prob.l);
+	x_space = Malloc(struct svm_node,elements);
 
 	max_index = 0;
 	j=0;

@@ -1,6 +1,7 @@
 #include <windows.h>
 #include <windowsx.h>
 #include <stdio.h>
+#include <ctype.h>
 #include <list>
 #include "../../svm.h"
 #define DEFAULT_PARAM "-t 2 -c 100"
@@ -143,7 +144,7 @@ void clear_all()
 	InvalidateRect(main_window, 0, 0);
 }
 
-void choose_brush(int v)
+HBRUSH choose_brush(int v)
 {
 	if(v==1) return brush1;
 	else if(v==2) return brush2;
@@ -187,6 +188,9 @@ void button_run_clicked()
 	param.eps = 1e-3;
 	param.p = 0.1;
 	param.shrinking = 1;
+	param.nr_weight = 0;
+	param.weight_label = NULL;
+	param.weight = NULL;
 
 	// parse options
 	char str[1024];
@@ -234,6 +238,14 @@ void button_run_clicked()
 				break;
 			case 'h':
 				param.shrinking = atoi(p);
+				break;
+			case 'w':
+				++param.nr_weight;
+				param.weight_label = (int *)realloc(param.weight_label,sizeof(int)*param.nr_weight);
+				param.weight = (double *)realloc(param.weight,sizeof(double)*param.nr_weight);
+				param.weight_label[param.nr_weight-1] = atoi(p);
+				while(*p && !isspace(*p)) ++p;
+				param.weight[param.nr_weight-1] = atof(p);
 				break;
 		}
 	}
@@ -341,6 +353,8 @@ void button_run_clicked()
 		delete[] prob.x;
 		delete[] prob.y;
 	}
+	free(param.weight_label);
+	free(param.weight);
 	draw_all_points();
 }
 

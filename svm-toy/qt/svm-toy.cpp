@@ -7,6 +7,7 @@
 #include <qfiledialog.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <ctype.h>
 #include <list>
 #include "../../svm.h"
 #define DEFAULT_PARAM "-t 2 -c 100"
@@ -105,6 +106,9 @@ private slots:
 		param.eps = 1e-3;
 		param.p = 0.1;
 		param.shrinking = 1;
+		param.nr_weight = 0;
+		param.weight_label = NULL;
+		param.weight = NULL;
 
 		// parse options
 		const char *p = input_line.text();
@@ -150,6 +154,14 @@ private slots:
 					break;
 				case 'h':
 					param.shrinking = atoi(p);
+					break;
+				case 'w':
+					++param.nr_weight;
+					param.weight_label = (int *)realloc(param.weight_label,sizeof(int)*param.nr_weight);
+					param.weight = (double *)realloc(param.weight,sizeof(double)*param.nr_weight);
+					param.weight_label[param.nr_weight-1] = atoi(p);
+					while(*p && !isspace(*p)) ++p;
+					param.weight[param.nr_weight-1] = atof(p);
 					break;
 			}
 		}
@@ -269,6 +281,8 @@ private slots:
 			delete[] prob.x;
 			delete[] prob.y;
 		}
+		free(param.weight_label);
+		free(param.weight);
 		draw_all_points();
 	}
 	void button_clear_clicked()

@@ -1,22 +1,42 @@
 #include <stdio.h>
 #include <ctype.h>
 #include <stdlib.h>
+#include <string.h>
 #include "svm.h"
-#define MAX_LINE_LEN 100000
-#define MAX_NR_ATTR 1000
 
-char line[MAX_LINE_LEN];
-struct svm_node x[MAX_NR_ATTR];
+char* line;
+int max_line_len = 1024;
+struct svm_node *x;
+int max_nr_attr = 64;
 
 struct svm_model* model;
+
+char* readline(FILE *input)
+{
+	int len;
+	
+	if(fgets(line,max_line_len,input) == NULL)
+		return NULL;
+
+	while(strrchr(line,'\n') == NULL)
+	{
+		max_line_len *= 2;
+		line = realloc(line, max_line_len);
+		len = strlen(line);
+		if(fgets(line+len,max_line_len-len,input) == NULL)
+			break;
+	}
+	return line;
+}
 
 void predict(FILE *input, FILE *output)
 {
 	int correct = 0;
 	int total = 0;
 	double error = 0;
+	double sumv = 0, sumy = 0, sumvv = 0, sumyy = 0, sumvy = 0;
 	
-#define SKIP_CLASS\
+#define SKIP_TARGET\
 	while(isspace(*p)) ++p;\
 	while(!isspace(*p)) ++p;
 
@@ -26,27 +46,37 @@ void predict(FILE *input, FILE *output)
 	while(isspace(*p)) ++p;\
 	while(*p && !isspace(*p)) ++p;
 
-	while(fgets(line,sizeof(line),input)!=NULL)
+	while(readline(input)!=NULL)
 	{
 		int i = 0;
-		double label,v;
+		double target,v;
 		const char *p = line;
 
-		if(sscanf(p,"%lf",&label)!=1) break;
+		if(sscanf(p,"%lf",&target)!=1) break;
 
-		SKIP_CLASS
+		SKIP_TARGET
 
 		while(sscanf(p,"%d:%lf",&x[i].index,&x[i].value)==2)
 		{
 			SKIP_ELEMENT;
 			++i;
+			if(i>=max_nr_attr-1)	// need one more for index = -1
+			{
+				max_nr_attr *= 2;
+				x = realloc(x,max_nr_attr*sizeof(struct svm_node));
+			}
 		}
 
 		x[i].index = -1;
 		v = svm_predict(model,x);
-		if(v == label)
+		if(v == target)
 			++correct;
-		error += (v-label)*(v-label);
+		error += (v-target)*(v-target);
+		sumv += v;
+		sumy += target;
+		sumvv += v*v;
+		sumyy += target*target;
+		sumvy += v*target;
 		++total;
 
 		fprintf(output,"%g\n",v);
@@ -54,6 +84,10 @@ void predict(FILE *input, FILE *output)
 	printf("Accuracy = %g%% (%d/%d) (classification)\n",
 		(double)correct/total*100,correct,total);
 	printf("Mean squared error = %g (regression)\n",error/total);
+	printf("Squared correlation coefficient = %g (regression)\n",
+		((total*sumvy-sumv*sumy)*(total*sumvy-sumv*sumy))/
+		((total*sumvv-sumv*sumv)*(total*sumyy-sumy*sumy))
+		);
 }
 
 int main(int argc, char **argv)
@@ -85,9 +119,13 @@ int main(int argc, char **argv)
 		fprintf(stderr,"can't open model file %s\n",argv[2]);
 		exit(1);
 	}
-
+	
+	line = malloc(max_line_len*sizeof(char));
+	x = malloc(max_nr_attr*sizeof(struct svm_node));
 	predict(input,output);
 	svm_destroy_model(model);
+	free(line);
+	free(x);
 	fclose(input);
 	fclose(output);
 	return 0;

@@ -268,13 +268,14 @@ abstract class Kernel {
 //
 //	min 0.5(\alpha^T Q \alpha) + b^T \alpha
 //
-//		0 <= alpha_i <= C
 //		y^T \alpha = \delta
 //		y_i = +1 or -1
+//		0 <= alpha_i <= Cp for y_i = 1
+//		0 <= alpha_i <= Cn for y_i = -1
 //
 // Given:
 //
-//	Q, b, y, C, and an initial feasible point \alpha
+//	Q, b, y, Cp, Cn, and an initial feasible point \alpha
 //	l is the size of vectors and matrices
 //	eps is the stopping criterion
 //
@@ -291,18 +292,22 @@ class Solver {
 	double[] alpha;
 	Kernel Q;
 	double eps;
-	double C;
+	double Cp,Cn;
 	double[] b;
 	int[] active_set;
 	double[] G_bar;		// gradient, if we treat free variables as 0
 	int l;
-	boolean unshrinked;		// XXX
+	boolean unshrinked;	// XXX
 	
 	static final double INF = java.lang.Double.POSITIVE_INFINITY;
 
+	double get_C(int i)
+	{
+		return (y[i] > 0)? Cp : Cn;
+	}
 	void update_alpha_status(int i)
 	{
-		if(alpha[i] >= C)
+		if(alpha[i] >= get_C(i))
 			alpha_status[i] = UPPER_BOUND;
 		else if(alpha[i] <= 0)
 			alpha_status[i] = LOWER_BOUND;
@@ -317,7 +322,8 @@ class Solver {
 	static class SolutionInfo {
 		double obj;
 		double rho;
-		double upper_bound;
+		double upper_bound_p;
+		double upper_bound_n;
 		double r;	// for Solver_NU
 	}
 
@@ -341,8 +347,8 @@ class Solver {
 
 		int i;
 		for(i=active_size;i<l;i++)
-			G[i] = C * G_bar[i] + b[i];
-		
+			G[i] = G_bar[i] + b[i];
+
 		for(i=0;i<active_size;i++)
 			if(is_free(i))
 			{
@@ -354,14 +360,15 @@ class Solver {
 	}
 
 	void Solve(int l, Kernel Q, double[] b_, byte[] y_,
-		   double[] alpha_, double C, double eps, SolutionInfo si, int shrinking)
+		   double[] alpha_, double Cp, double Cn, double eps, SolutionInfo si, int shrinking)
 	{
 		this.l = l;
 		this.Q = Q;
 		b = (double[])b_.clone();
 		y = (byte[])y_.clone();
 		alpha = (double[])alpha_.clone();
-		this.C = C;
+		this.Cp = Cp;
+		this.Cn = Cn;
 		this.eps = eps;
 		this.unshrinked = false;
 
@@ -400,7 +407,7 @@ class Solver {
 						G[j] += alpha_i*Q_i[j];
 					if(is_upper_bound(i))
 						for(j=0;j<l;j++)
-							G_bar[j] += Q_i[j];
+							G_bar[j] += get_C(i) * Q_i[j];
 				}
 		}
 
@@ -444,6 +451,9 @@ class Solver {
 			double[] Q_i = Q.get_Q(i,active_size);
 			double[] Q_j = Q.get_Q(j,active_size);
 
+			double C_i = get_C(i);
+			double C_j = get_C(j);
+
 			double old_alpha_i = alpha[i];
 			double old_alpha_j = alpha[j];
 
@@ -453,14 +463,10 @@ class Solver {
 				double diff = alpha[i] - alpha[j];
 				alpha[i] += delta;
 				alpha[j] += delta;
+			
 				if(diff > 0)
 				{
-					if(alpha[i] > C)
-					{
-						alpha[i] = C;
-						alpha[j] = C - diff;
-					}
-					else if(alpha[j] < 0)
+					if(alpha[j] < 0)
 					{
 						alpha[j] = 0;
 						alpha[i] = diff;
@@ -468,15 +474,26 @@ class Solver {
 				}
 				else
 				{
-					if(alpha[j] > C)
-					{
-						alpha[j] = C;
-						alpha[i] = C + diff;
-					}
-					else if(alpha[i] < 0)
+					if(alpha[i] < 0)
 					{
 						alpha[i] = 0;
 						alpha[j] = -diff;
+					}
+				}
+				if(diff > C_i - C_j)
+				{
+					if(alpha[i] > C_i)
+					{
+						alpha[i] = C_i;
+						alpha[j] = C_i - diff;
+					}
+				}
+				else
+				{
+					if(alpha[j] > C_j)
+					{
+						alpha[j] = C_j;
+						alpha[i] = C_j + diff;
 					}
 				}
 			}
@@ -486,17 +503,28 @@ class Solver {
 				double sum = alpha[i] + alpha[j];
 				alpha[i] -= delta;
 				alpha[j] += delta;
-				if(sum > C)
+				if(sum > C_i)
 				{
-					if(alpha[i] > C)
+					if(alpha[i] > C_i)
 					{
-						alpha[i] = C;
-						alpha[j] = sum - C;
+						alpha[i] = C_i;
+						alpha[j] = sum - C_i;
 					}
-					else if(alpha[j] > C)
+				}
+				else
+				{
+					if(alpha[j] < 0)
 					{
-						alpha[j] = C;
-						alpha[i] = sum - C;
+						alpha[j] = 0;
+						alpha[i] = sum;
+					}
+				}
+				if(sum > C_j)
+				{
+					if(alpha[j] > C_j)
+					{
+						alpha[j] = C_j;
+						alpha[i] = sum - C_j;
 					}
 				}
 				else
@@ -505,11 +533,6 @@ class Solver {
 					{
 						alpha[i] = 0;
 						alpha[j] = sum;
-					}
-					else if(alpha[j] < 0)
-					{
-						alpha[j] = 0;
-						alpha[i] = sum;
 					}
 				}
 			}
@@ -537,10 +560,10 @@ class Solver {
 					Q_i = Q.get_Q(i,l);
 					if(ui)
 						for(k=0;k<l;k++)
-							G_bar[k] -= Q_i[k];
+							G_bar[k] -= C_i * Q_i[k];
 					else
 						for(k=0;k<l;k++)
-							G_bar[k] += Q_i[k];
+							G_bar[k] += C_i * Q_i[k];
 				}
 
 				if(uj != is_upper_bound(j))
@@ -548,10 +571,10 @@ class Solver {
 					Q_j = Q.get_Q(j,l);
 					if(uj)
 						for(k=0;k<l;k++)
-							G_bar[k] -= Q_j[k];
+							G_bar[k] -= C_j * Q_j[k];
 					else
 						for(k=0;k<l;k++)
-							G_bar[k] += Q_j[k];
+							G_bar[k] += C_j * Q_j[k];
 				}
 			}
 
@@ -577,7 +600,9 @@ class Solver {
 				alpha_[active_set[i]] = alpha[i];
 		}
 
-		si.upper_bound = C;
+		si.upper_bound_p = Cp;
+		si.upper_bound_n = Cn;
+
 		System.out.print("\noptimization finished, #iter = "+iter+"\n");
 	}
 
@@ -764,11 +789,11 @@ final class Solver_NU extends Solver
 	private SolutionInfo si;
 
 	void Solve(int l, Kernel Q, double[] b, byte[] y,
-		   double[] alpha, double C, double eps,
+		   double[] alpha, double Cp, double Cn, double eps,
 		   SolutionInfo si, int shrinking)
 	{
 		this.si = si;
-		super.Solve(l,Q,b,y,alpha,C,eps,si,shrinking);
+		super.Solve(l,Q,b,y,alpha,Cp,Cn,eps,si,shrinking);
 	}
 
 	int select_working_set(int[] working_set)
@@ -1105,7 +1130,8 @@ public class svm {
 	// construct and solve various formulations
 	//
 	private static void solve_c_svc(svm_problem prob, svm_parameter param,
-					double[] alpha, Solver.SolutionInfo si)
+					double[] alpha, Solver.SolutionInfo si,
+					double Cp, double Cn)
 	{
 		int l = prob.l;
 		double[] minus_ones = new double[l];
@@ -1122,7 +1148,7 @@ public class svm {
 
 		Solver s = new Solver();
 		s.Solve(l, new SVC_Q(prob,param,y), minus_ones, y,
-			alpha, param.C, param.eps, si, param.shrinking);
+			alpha, Cp, Cn, param.eps, si, param.shrinking);
 
 		double sum_alpha=0;
 		for(i=0;i<l;i++)
@@ -1185,7 +1211,7 @@ public class svm {
 
 		Solver_NU s = new Solver_NU();
 		s.Solve(l, new SVC_Q(prob,param,y), zeros, y,
-			alpha, 1.0, param.eps, si, param.shrinking);
+			alpha, 1.0, 1.0, param.eps, si, param.shrinking);
 		double r = si.r;
 
 		System.out.print("C = "+1/r+"\n");
@@ -1195,7 +1221,8 @@ public class svm {
 
 		si.rho /= r;
 		si.obj /= (r*r);
-		si.upper_bound = 1/r;
+		si.upper_bound_p = 1/r;
+		si.upper_bound_n = 1/r;
 	}
 
 	private static void solve_one_class(svm_problem prob, svm_parameter param,
@@ -1226,7 +1253,7 @@ public class svm {
 
 		Solver s = new Solver();
 		s.Solve(l, new ONE_CLASS_Q(prob,param), zeros, ones,
-			alpha, 1.0, param.eps, si, param.shrinking);
+			alpha, 1.0, 1.0, param.eps, si, param.shrinking);
 	}
 
 	private static void solve_epsilon_svr(svm_problem prob, svm_parameter param,
@@ -1251,7 +1278,7 @@ public class svm {
 
 		Solver s = new Solver();
 		s.Solve(2*l, new SVR_Q(prob,param), linear_term, y,
-			alpha2, param.C, param.eps, si, param.shrinking);
+			alpha2, param.C, param.C, param.eps, si, param.shrinking);
 
 		double sum_alpha = 0;
 		for(i=0;i<l;i++)
@@ -1293,7 +1320,7 @@ public class svm {
 
 		Solver_NU s = new Solver_NU();
 		s.Solve(2*l, new SVR_Q(prob,param), linear_term, y,
-			alpha2, param.C, param.eps, si, param.shrinking);
+			alpha2, C, C, param.eps, si, param.shrinking);
 
 		System.out.print("epsilon = "+(-si.r)+"\n");
 		
@@ -1310,14 +1337,16 @@ public class svm {
 		double rho;	
 	};
 
-	static decision_function svm_train_one(svm_problem prob, svm_parameter param)
+	static decision_function svm_train_one(
+		svm_problem prob, svm_parameter param,
+		double Cp, double Cn)
 	{
 		double[] alpha = new double[prob.l];
 		Solver.SolutionInfo si = new Solver.SolutionInfo();
 		switch(param.svm_type)
 		{
 			case svm_parameter.C_SVC:
-				solve_c_svc(prob,param,alpha,si);
+				solve_c_svc(prob,param,alpha,si,Cp,Cn);
 				break;
 			case svm_parameter.NU_SVC:
 				solve_nu_svc(prob,param,alpha,si);
@@ -1344,10 +1373,19 @@ public class svm {
 			if(Math.abs(alpha[i]) > 0)
 			{
 				++nSV;
-				if(Math.abs(alpha[i]) >= si.upper_bound)
+				if(prob.y[i] > 0)
+				{
+					if(Math.abs(alpha[i]) >= si.upper_bound_p)
 					++nBSV;
+				}
+				else
+				{
+					if(Math.abs(alpha[i]) >= si.upper_bound_n)
+						++nBSV;
+				}
 			}
 		}
+
 		System.out.print("nSV = "+nSV+", nBSV = "+nBSV+"\n");
 
 		decision_function f = new decision_function();
@@ -1373,7 +1411,7 @@ public class svm {
 			model.label = null;
 			model.nSV = null;
 			model.sv_coef = new double[1][];
-			decision_function f = svm_train_one(prob,param);
+			decision_function f = svm_train_one(prob,param,0,0);
 			model.rho = new double[1];
 			model.rho[0] = f.rho;
 
@@ -1454,6 +1492,23 @@ public class svm {
 			for(i=1;i<nr_class;i++)
 				start[i] = start[i-1]+count[i-1];
 
+			// calculate weighted C
+
+			double[] weighted_C = new double[nr_class];
+			for(i=0;i<nr_class;i++)
+				weighted_C[i] = param.C;
+			for(i=0;i<param.nr_weight;i++)
+			{	
+				int j;
+				for(j=0;j<nr_class;j++)
+					if(param.weight_label[i] == label[j])
+						break;
+				if(j == nr_class)
+					System.err.print("warning: class label "+param.weight_label[i]+" specified in weight is not found\n");
+				else
+					weighted_C[j] *= param.weight[i];
+			}
+
 			// train n*(n-1)/2 models
 		
 			boolean[] nonzero = new boolean[l];
@@ -1471,22 +1526,23 @@ public class svm {
 					sub_prob.l = ci+cj;
 					sub_prob.x = new svm_node[sub_prob.l][];
 					sub_prob.y = new double[sub_prob.l];
-					for(int k=0;k<ci;k++)
+					int k;
+					for(k=0;k<ci;k++)
 					{
 						sub_prob.x[k] = x[si+k];
 						sub_prob.y[k] = +1;
 					}
-					for(int k=0;k<cj;k++)
+					for(k=0;k<cj;k++)
 					{
 						sub_prob.x[ci+k] = x[sj+k];
 						sub_prob.y[ci+k] = -1;
 					}
 				
-					f[p] = svm_train_one(sub_prob,param);
-					for(int k=0;k<ci;k++)
+					f[p] = svm_train_one(sub_prob,param,weighted_C[i],weighted_C[j]);
+					for(k=0;k<ci;k++)
 						if(!nonzero[si+k] && Math.abs(f[p].alpha[k]) > 0)
 							nonzero[si+k] = true;
-					for(int k=0;k<cj;k++)
+					for(k=0;k<cj;k++)
 						if(!nonzero[sj+k] && Math.abs(f[p].alpha[ci+k]) > 0)
 							nonzero[sj+k] = true;
 					++p;

@@ -1,5 +1,6 @@
 #include <gtk/gtk.h>
 #include <stdio.h>
+#include <ctype.h>
 #include <list>
 #include "callbacks.h"
 #include "interface.h"
@@ -113,6 +114,9 @@ on_button_run_clicked                  (GtkButton       *button,
 	param.eps = 1e-3;
 	param.p = 0.1;
 	param.shrinking = 1;
+	param.nr_weight = 0;
+	param.weight_label = NULL;
+	param.weight = NULL;
 
 	// parse options
 	const char *p = gtk_entry_get_text(GTK_ENTRY(entry_option));
@@ -158,6 +162,14 @@ on_button_run_clicked                  (GtkButton       *button,
 				break;
 			case 'h':
 				param.shrinking = atoi(p);
+				break;
+			case 'w':
+				++param.nr_weight;
+				param.weight_label = (int *)realloc(param.weight_label,sizeof(int)*param.nr_weight);
+				param.weight = (double *)realloc(param.weight,sizeof(double)*param.nr_weight);
+				param.weight_label[param.nr_weight-1] = atoi(p);
+				while(*p && !isspace(*p)) ++p;
+				param.weight[param.nr_weight-1] = atof(p);
 				break;
 		}
 	}
@@ -271,6 +283,8 @@ on_button_run_clicked                  (GtkButton       *button,
 		delete[] prob.x;
 		delete[] prob.y;
 	}
+	free(param.weight_label);
+	free(param.weight);
 	draw_all_points();
 }
 

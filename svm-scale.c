@@ -1,6 +1,6 @@
 /*
 	scale attributes to [lower,upper]
-	usage: scale [-l lower] [-u upper] filename
+	usage: scale [-l lower] [-u upper] [-y y_lower y_upper] filename
 */
 #include <float.h>
 #include <stdio.h>
@@ -10,14 +10,18 @@
 #define MAX_LINE_LEN 100000
 
 char buf[MAX_LINE_LEN];
-double lower=-1.0,upper=1.0;
+double lower=-1.0,upper=1.0,y_lower,y_upper;
+int y_scaling = 0;
 double *feature_max;
 double *feature_min;
+double y_max = -DBL_MAX;
+double y_min = DBL_MAX;
 int max_index;
 
 #define max(x,y) ((x>y)?x:y)
 #define min(x,y) ((x<y)?x:y)
 
+void output_target(double value);
 void output(int index, double value);
 
 int main(int argc,char **argv)
@@ -33,13 +37,19 @@ int main(int argc,char **argv)
 		{
 			case 'l': lower = atof(argv[i]); break;
 			case 'u': upper = atof(argv[i]); break;
+			case 'y':
+				y_lower = atof(argv[i]);
+				++i;
+				y_upper = atof(argv[i]);
+				y_scaling = 1;
+				break;
 			default:
 				fprintf(stderr,"unknown option\n");
 				exit(1);
 		}
 	}
 
-	if(!(upper > lower))
+	if(!(upper > lower) || (y_scaling && !(y_upper > y_lower)))
 	{
 		fprintf(stderr,"inconsistent lower/upper specification\n");
 		exit(1);
@@ -47,7 +57,8 @@ int main(int argc,char **argv)
 	
 	if(argc != i+1) 
 	{
-		fprintf(stderr,"usage: %s [-l lower] [-u upper] filename\n",argv[0]);
+		fprintf(stderr,"usage: %s [-l lower] [-u upper] [-y y_lower y_upper] filename\n",argv[0]);
+		fprintf(stderr,"(default: lower = -1, upper = 1, no y scaling)\n");
 		exit(1);
 	}
 
@@ -59,7 +70,7 @@ int main(int argc,char **argv)
 		exit(1);
 	}
 
-#define SKIP_CLASS\
+#define SKIP_TARGET\
 	while(isspace(*p)) ++p;\
 	while(!isspace(*p)) ++p;
 
@@ -76,7 +87,7 @@ int main(int argc,char **argv)
 	{
 		char *p=buf;
 
-		SKIP_CLASS
+		SKIP_TARGET
 
 		while(sscanf(p,"%d:%*f",&index)==1)
 		{
@@ -107,9 +118,14 @@ int main(int argc,char **argv)
 	{
 		char *p=buf;
 		int next_index=1;
+		double target;
 		double value;
+
+		sscanf(p,"%lf",&target);
+		y_max = max(y_max,target);
+		y_min = min(y_min,target);
 		
-		SKIP_CLASS
+		SKIP_TARGET
 
 		while(sscanf(p,"%d:%lf",&index,&value)==2)
 		{
@@ -141,13 +157,13 @@ int main(int argc,char **argv)
 		char *p=buf;
 		int next_index=1;
 		int index;
-		double class;
+		double target;
 		double value;
 		
-		sscanf(p,"%lf",&class);
-		printf("%+g ",class);
+		sscanf(p,"%lf",&target);
+		output_target(target);
 
-		SKIP_CLASS
+		SKIP_TARGET
 
 		while(sscanf(p,"%d:%lf",&index,&value)==2)
 		{
@@ -168,6 +184,20 @@ int main(int argc,char **argv)
 
 	fclose(fp);
 	return 0;
+}
+
+void output_target(double value)
+{
+	if(y_scaling)
+	{
+		if(value == y_min)
+			value = y_lower;
+		else if(value == y_max)
+			value = y_upper;
+		else value = y_lower + (y_upper-y_lower) *
+			     (value - y_min)/(y_max-y_min);
+	}
+	printf("%g ",value);
 }
 
 void output(int index, double value)

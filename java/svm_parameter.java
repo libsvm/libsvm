@@ -23,6 +23,9 @@ public class svm_parameter
 	public double cache_size; // in MB
 	public double eps;	// stopping criteria
 	public double C;	// for C_SVC, EPSILON_SVR and NU_SVR
+	public int nr_weight;		// for C_SVC
+	public int[] weight_label;	// for C_SVC
+	public double[] weight;		// for C_SVC
 	public double nu;	// for NU_SVC, ONE_CLASS, and NU_SVR
 	public double p;	// for EPSILON_SVR
 	public int shrinking;	// use the shrinking heuristics

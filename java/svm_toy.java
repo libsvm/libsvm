@@ -170,6 +170,9 @@ public class svm_toy extends Applet {
 		param.eps = 1e-3;
 		param.p = 0.1;
 		param.shrinking = 1;
+		param.nr_weight = 0;
+		param.weight_label = new int[0];
+		param.weight = new double[0];
 
 		// parse options
 		StringTokenizer st = new StringTokenizer(args);
@@ -215,6 +218,23 @@ public class svm_toy extends Applet {
 					break;
 				case 'h':
 					param.shrinking = atoi(argv[i]);
+					break;
+				case 'w':
+					++param.nr_weight;
+					{
+						int[] old = param.weight_label;
+						param.weight_label = new int[param.nr_weight];
+						System.arraycopy(old,0,param.weight_label,0,param.nr_weight-1);
+					}
+
+					{
+						double[] old = param.weight;
+						param.weight = new double[param.nr_weight];
+						System.arraycopy(old,0,param.weight,0,param.nr_weight-1);
+					}
+
+					param.weight_label[param.nr_weight-1] = atoi(argv[i-1].substring(2));
+					param.weight[param.nr_weight-1] = atof(argv[i]);
 					break;
 				default:
 					System.err.print("unknown option\n");
