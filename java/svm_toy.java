@@ -337,6 +337,7 @@ public class svm_toy extends Applet {
 					x[0].value = (double) i / XLEN;
 					x[1].value = (double) j / YLEN;
 					double d = svm.svm_predict(model, x);
+					if (param.svm_type == svm_parameter.ONE_CLASS && d<0) d=2;
 					buffer_gc.setColor(colors[(int)d]);
 					window_gc.setColor(colors[(int)d]);
 					buffer_gc.drawLine(i,j,i,j);

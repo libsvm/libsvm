@@ -344,6 +344,7 @@ void button_run_clicked()
 				x[0].value = (double) i / XLEN;
 				x[1].value = (double) j / YLEN;
 				double d = svm_predict(model, x);
+				if (param.svm_type == ONE_CLASS && d<0) d=2;
 				SetPixel(window_dc, i, j, colors[(int)d]);
 				SetPixel(buffer_dc, i, j, colors[(int)d]);
 			}

@@ -270,6 +270,7 @@ private slots:
 					x[0].value = (double) i / XLEN;
 					x[1].value = (double) j / YLEN;
 					double d = svm_predict(model, x);
+					if (param.svm_type == ONE_CLASS && d<0) d=2;
 					buffer_painter.setPen(colors[(int)d]);
 					window_painter.setPen(colors[(int)d]);
 					buffer_painter.drawPoint(i,j);

@@ -335,8 +335,13 @@ public class svm {
 The library is in the "libsvm" package.
 Note that in Java version, svm_node[] is not ended with a node whose index = -1.
 
+Python Interface
+================
+
+See the README file in python directory.
+
 ADDITIONAL INFORMATION
-============
+======================
 
 Chih-Chung Chang and Chih-Jen Lin
 LIBSVM : a library for support vector machines.

@@ -273,6 +273,7 @@ on_button_run_clicked                  (GtkButton       *button,
 				x[0].value = (double) i / XLEN;
 				x[1].value = (double) j / YLEN;
 				double d = svm_predict(model, x);
+				if (param.svm_type == ONE_CLASS && d<0) d=2;
 				gdk_gc_set_foreground(gc,&colors[(int)d]);
 				gdk_draw_point(pixmap,gc,i,j);
 				gdk_draw_point(draw_main->window,gc,i,j);
