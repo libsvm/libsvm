@@ -1,0 +1,205 @@
+Libsvm is a simple, easy-to-use, and moderately efficient software
+for SVM classification. This document explains the use of libsvm.
+
+Libsvm is available at 
+http://www.csie.ntu.edu.tw/~cjlin/libsvm
+Please read the COPYRIGHT file before using libsvm.
+
+Installation
+============
+
+On Unix systems, type `make' to build the `svm-train' and `svm-classify'
+programs. Run them without arguments to show the usages of them.
+
+On other systems, use the pre-built binaries (Windows binaries are in
+the subdirectory `windows') or consult `Makefile' to build them. It is easy.
+
+The format of training and testing data file is:
+
+<label> <index1>:<value1> <index2>:<value2> ...
+.
+.
+.
+
+<label> is +1 or -1, <index> is an integer starting from 1, <value> is
+a real number.
+
+There is one sample training data file (heart_scale) in this package.
+Type `./svm-train heart_scale', and the program will read the training
+data file and output the model file `heart_scale.model'. Then you can
+type `./svm-classify heart_scale heart_scale.model output' to see the
+rate of classification on training data. The `output' file contains
+the output values of the decision function.
+
+There are some other useful programs in this package.
+
+scale:
+
+	This is a tool for scaling input data file.
+	Type `make scale' to build it.
+
+svm-toy:
+
+	This is a simple graphical interface which shows how SVM
+	separate data in a plane.
+
+	You can enter options in the bottom of the window, the syntax of
+	options is the same as `svm-train'.
+
+	Type `make' in respective directories to build them.
+
+	You need Qt library to build the Qt version.
+	(You can download it from http://www.trolltech.com)
+
+	You need GTK+ library to build the GTK version.
+	(You can download it from http://www.gtk.org)
+	
+	We use Visual C++ to build the Windows version.
+	The pre-built Windows binaries are in the windows subdirectory.
+
+`svm-train' Usage
+=================
+
+Usage: svm-train [options] training_set_file [model_file]
+options:
+-c cost : set cost C of constraints violation (default 1)
+-t kernel_type : set type of kernel function (default 2)
+        0 -- linear
+        1 -- polynomial: (gamma*u'*v + coef0)^degree
+        2 -- radial basis function: exp(-gamma*|u-v|^2)
+        3 -- sigmoid: tanh(gamma*u'*v + coef0)
+-d degree : set degree in kernel function (default 3)
+-g gamma : set gamma in kernel function (default 1/k)
+-r coef0 : set coef0 in poly/sigmoid kernel function (default 0)
+-m cachesize : set cache memory size in MB (default 40)
+-e epsilon : set tolerance of termination criterion (default 0.001)
+
+Library Usage
+=============
+
+These functions and structures are declared in the header file `svm.h'.
+You need to #include "svm.h" in your C/C++ source files and link your
+program with `svm.cpp'. You can see `svm-train.c' and `svm-classify.c'
+for examples showing how to use them.
+
+Before you classify test data, you need to construct an SVM model
+(`svm_model') using training data. A model can also be saved in
+a file for later use. Once an SVM model is available, you can use it
+to classify new data.
+
+- Function: struct svm_model *svm_train(const struct svm_problem *prob,
+					const struct svm_parameter *param);
+
+    This function constructs and returns an SVM model according to
+    the given training data and parameters.
+
+    struct svm_problem describes the problem:
+	
+	struct svm_problem
+	{
+		int l;
+		signed char *y;
+		struct svm_node **x;
+	};
+ 
+    where `l' is the number of traing data, and `y' is an array containing
+    their labels (+1/-1). `x' is an array of pointers, each of which
+    points to a sparse representation (array of svm_node) of one
+    training vector.
+
+    For example, if we have the following training data:
+
+    LABEL	ATTR1	ATTR2	ATTR3	ATTR4	ATTR5
+    -----	-----	-----	-----	-----	-----
+      1		  0	  0.1	  0.2	  0	  0
+     -1		  0	  0.1	  0.3	 -1.2	  0
+      1		  0.4	  0	  0	  0	  0
+      1		  0	  0.1	  0	  1.4	  0.5
+     -1		 -0.1	 -0.2	  0.1	  1.1	  0.1
+
+    then the components of svm_problem are:
+
+    l = 5
+
+    y -> 1 -1 1 1 -1
+
+    x -> [ ] -> (2,0.1) (3,0.2) (-1,?)
+	 [ ] -> (2,0.1) (3,0.3) (4,-1.2) (-1,?)
+	 [ ] -> (1,0.4) (-1,?)
+	 [ ] -> (2,0.1) (4,1.4) (5,0.5) (-1,?)
+	 [ ] -> (1,-0.1) (2,-0.2) (3,0.1) (4,1.1) (5,0.1) (-1,?)
+
+    where (index,value) is stored in the structure `svm_node':
+
+	struct svm_node
+	{
+		int index;
+		double value;
+	};
+
+    index = -1 indicates the end of one vector.
+ 
+    struct svm_parameter describes the parameters of an SVM model:
+
+	struct svm_parameter
+	{
+		int kernel_type;
+		double degree;  // for poly
+		double gamma;   // for poly/rbf/sigmoid
+		double coef0;   // for poly/sigmoid
+
+		// these are for training only
+		double cache_size; // in MB
+		double C;
+		double eps;
+	};
+  
+    kernel_type can be one of LINEAR, POLY, RBF, SIGMOID.
+
+    LINEAR:	u'*v
+    POLY:	(gamma*u'*v + coef0)^degree
+    RBF:	exp(-gamma*|u-v|^2)
+    SIGMOID:	tanh(gamma*u'*v + coef0)
+
+    cache_size is the size of the kernel cache, specified in megabytes.
+    C is the cost of constraints violation. (we usually use 1 to 1000)
+    eps is the stopping criterion. (we usually use 0.001)
+
+    *NOTE* Because svm_model contains pointers to svm_problem, you can
+    not free the memory used by svm_problem if you are still using the
+    svm_model produced by svm_train().
+
+- Function: int svm_save_model(const char *model_file_name,
+			       const struct svm_model *model);
+
+    This function saves a model to a file; returns 0 on success, or -1
+    if an error occurs.
+
+- Function: struct svm_model *svm_load_model(const char *model_file_name);
+
+    This function returns a pointer to the model read from the file,
+    or a null pointer if the model could not be loaded.
+
+- Function: double svm_classify(const struct svm_model *model,
+				const struct svm_node *x);
+
+    This function classifies a test vector x using a model;
+    returns the value of the decision function. (positive if classified as
+    class +1, negative as class -1) 
+
+- Function: void svm_destroy_model(struct svm_model *model);
+
+    This function frees the memory used by a model.
+
+ADDITIONAL INFORMATION
+============
+
+Chih-Chung Chang and Chih-Jen Lin
+Libsvm: Introduction and Benchmarks
+http://www.csie.ntu.edu.tw/~cjlin/papers/q2.ps.gz
+
+Acknowledgments:
+This work was supported in part by the National Science 
+Council of Taiwan via the grant NSC 89-2213-E-002-013.
+The authors thank Chih-Wei Hsu and Jen-Hao Lee
+for many helpful discussions and comments.
