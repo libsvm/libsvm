@@ -41,7 +41,7 @@ private:
 	void move_to_last(head_t *h);
 };
 
-Cache::Cache(int _l,int _size):l(_l),size(_size)
+Cache::Cache(int l_,int size_):l(l_),size(size_)
 {
 	head = new head_t[size];
 	int i;
@@ -160,8 +160,8 @@ private:
 	}
 };
 
-Kernel::Kernel(int l, const svm_node * const * _x, const svm_parameter& param)
-:x(_x), kernel_type(param.kernel_type), degree(param.degree),
+Kernel::Kernel(int l, const svm_node * const * x_, const svm_parameter& param)
+:x(x_), kernel_type(param.kernel_type), degree(param.degree),
  gamma(param.gamma), coef0(param.coef0)
 {
 
@@ -286,6 +286,7 @@ double Kernel::k_function(const svm_node *x, const svm_node *y,
 //
 //		0 <= alpha_i <= C
 //		y^T \alpha = \delta
+//		y_i = +1 or -1
 //
 // Given:
 //
@@ -297,18 +298,17 @@ double Kernel::k_function(const svm_node *x, const svm_node *y,
 //
 class Solver {
 public:
-	Solver( int _l, const Kernel& Q, const double *b, const double *_y,
-		double *_alpha, double _C, double _eps,
-		double& obj, double& rho);
-
-	~Solver();
-
-private:
-	const int l;
+	Solver() {};
+	virtual ~Solver() {};
+	void Solve(int l_, const Kernel& Q, const double *b, const double *y_,
+		   double *alpha_, double C_, double eps_,
+		   double& obj, double& rho);
+protected:
+	int l;
 	const double *y;
-	double * const alpha;
-	const double C;
-	const double eps;
+	double * alpha;
+	double C;
+	double eps;
 
 	double * G;		// gradient of objective function
 	enum { LOWER_BOUND, UPPER_BOUND, FREE };
@@ -323,14 +323,20 @@ private:
 	}
 	bool is_upper_bound(int i) { return alpha_status[i] == UPPER_BOUND; }
 	bool is_lower_bound(int i) { return alpha_status[i] == LOWER_BOUND; }
-	int select_working_set(int &i, int &j);
+	virtual int select_working_set(int &i, int &j);
+	virtual double calculate_rho();
 };
 
-Solver::Solver( int _l, const Kernel& Q, const double *b, const double *_y,
-		double *_alpha, double _C, double _eps,
-		double& obj, double& rho)
-:l(_l),y(_y),alpha(_alpha),C(_C),eps(_eps)
+void Solver::Solve(int l_, const Kernel& Q, const double *b, const double *y_,
+		   double *alpha_, double C_, double eps_,
+		   double& obj, double& rho)
 {
+	l = l_;
+	y = y_;
+	alpha = alpha_;
+	C = C_;
+	eps = eps_;
+
 	// initialize alpha_status
 	{
 		alpha_status = new char[l];
@@ -382,23 +388,25 @@ Solver::Solver( int _l, const Kernel& Q, const double *b, const double *_y,
 
 		double old_alpha_i = alpha[i];
 		double old_alpha_j = alpha[j];
-		double s = y[i]*old_alpha_i + y[j]*old_alpha_j;
 
-		double H = s/y[j];
-		double L = (s-C*y[i])/y[j];
-
-		if(y[i]*y[j] < 0) { double t = H; H = L; L = t;}
-
-		H = min(C,H);
-		L = max(0.0,L);
-
-		alpha[j] += y[i] * (y[j]*G[i] - y[i]*G[j]) /
-			(y[i]*(y[i]*Q_j[j] - 2*Q_i[j]*y[j]) + y[j]*y[j]*Q_i[i]);
-
-		if(alpha[j] > H) alpha[j] = H;
-		else if(alpha[j] < L) alpha[j] = L;
-
-		alpha[i] = (s - y[j]*alpha[j])/y[i];
+		if(y[i]*y[j] < 0)
+		{
+			double L = max(0.0,alpha[j]-alpha[i]);
+			double H = min(C,C+alpha[j]-alpha[i]);
+			alpha[j] += (-G[i]-G[j])/(Q_i[i]+Q_j[j]+2*Q_i[j]);
+			if(alpha[j] >= H) alpha[j] = H;
+			else if(alpha[j] <= L) alpha[j] = L;
+			alpha[i] += (alpha[j] - old_alpha_j);
+		}
+		else
+		{
+			double L = max(0.0,alpha[i]+alpha[j]-C);
+			double H = min(C,alpha[i]+alpha[j]);
+			alpha[j] += (G[i]-G[j])/(Q_i[i]+Q_j[j]-2*Q_i[j]);
+			if(alpha[j] >= H) alpha[j] = H;
+			else if(alpha[j] <= L) alpha[j] = L;			
+			alpha[i] -= (alpha[j] - old_alpha_j);
+		}
 
 		// update alpha_status
 
@@ -418,42 +426,7 @@ Solver::Solver( int _l, const Kernel& Q, const double *b, const double *_y,
 	
 	// calculate rho
 
-	{
-		double r;
-		int nr_free = 0;
-		double ub = INF, lb = -INF, sum_free = 0;
-		for(int i=0;i<l;i++)
-		{
-			double yG = y[i]*G[i];
-
-			if(is_lower_bound(i))
-			{
-				if(y[i] > 0)
-					ub = min(ub,yG);
-				else
-					lb = max(lb,yG);
-			}
-			else if(is_upper_bound(i))
-			{
-				if(y[i] < 0)
-					ub = min(ub,yG);
-				else
-					lb = max(lb,yG);
-			}
-			else
-			{
-				++nr_free;
-				sum_free += yG;
-			}
-		}
-
-		if(nr_free>0)
-			r = sum_free/nr_free;
-		else
-			r = (ub+lb)/2;
-
-		rho = r;
-	}
+	rho = calculate_rho();
 
 	// calculate objective value
 
@@ -467,12 +440,47 @@ Solver::Solver( int _l, const Kernel& Q, const double *b, const double *_y,
 	}
 
 	printf("\noptimization finished, #iter = %d\n",iter);
-}
 
-Solver::~Solver()
-{
 	delete[] alpha_status;
 	delete[] G;
+}
+
+double Solver::calculate_rho()
+{
+	double r;
+	int nr_free = 0;
+	double ub = INF, lb = -INF, sum_free = 0;
+	for(int i=0;i<l;i++)
+	{
+		double yG = y[i]*G[i];
+
+		if(is_lower_bound(i))
+		{
+			if(y[i] > 0)
+				ub = min(ub,yG);
+			else
+				lb = max(lb,yG);
+		}
+		else if(is_upper_bound(i))
+		{
+			if(y[i] < 0)
+				ub = min(ub,yG);
+			else
+				lb = max(lb,yG);
+		}
+		else
+		{
+			++nr_free;
+			sum_free += yG;
+		}
+	}
+
+	if(nr_free>0)
+		r = sum_free/nr_free;
+	else
+		r = (ub+lb)/2;
+
+	return r;
 }
 
 // return 1 if already optimal, return 0 otherwise
@@ -539,13 +547,163 @@ int Solver::select_working_set(int &out_i, int &out_j)
 }
 
 //
+// Solver for nu-svm classification
+//
+
+class Solver_NU_SVC : public Solver
+{
+public:
+	Solver_NU_SVC() {}
+	~Solver_NU_SVC() {}
+	void Solve(int l_, const Kernel& Q, const double *b, const double *y_,
+		   double *alpha_, double C_, double eps_,
+		   double& obj, double& rho, const double *y1_, double& r_)
+	{
+		y1 = y1_;
+		r = &r_;
+		Solver::Solve(l_,Q,b,y_,alpha_,C_,eps_,obj,rho);
+	}
+private:
+	int select_working_set(int &i, int &j);
+	double calculate_rho();
+	const double *y1;
+	double* r;
+};
+
+int Solver_NU_SVC::select_working_set(int &out_i, int &out_j)
+{
+	// return i,j which maximize -grad(f)^T d , under constraint
+	// if alpha_i == C, d != +1
+	// if alpha_i == 0, d != -1
+
+	double Gmax1 = -INF;	// max { -grad(f)_i * d | y_i = +1, d = +1 }
+	int Gmax1_idx = -1;
+
+	double Gmax2 = -INF;	// max { -grad(f)_i * d | y_i = +1, d = -1 }
+	int Gmax2_idx = -1;
+
+	double Gmax3 = -INF;	// max { -grad(f)_i * d | y_i = -1, d = +1 }
+	int Gmax3_idx = -1;
+
+	double Gmax4 = -INF;	// max { -grad(f)_i * d | y_i = -1, d = -1 }
+	int Gmax4_idx = -1;
+
+	for(int i=0;i<l;i++)
+	{
+		if(y1[i]>0)	// y > 0
+		{
+			if(!is_upper_bound(i))	// d = +1
+			{
+				if(-G[i] > Gmax1)
+				{
+					Gmax1 = -G[i];
+					Gmax1_idx = i;
+				}
+			}
+			if(!is_lower_bound(i))	// d = -1
+			{
+				if(G[i] > Gmax2)
+				{
+					Gmax2 = G[i];
+					Gmax2_idx = i;
+				}
+			}
+		}
+		else		// y < 0
+		{
+			if(!is_upper_bound(i))	// d = +1
+			{
+				if(-G[i] > Gmax3)
+				{
+					Gmax3 = -G[i];
+					Gmax3_idx = i;
+				}
+			}
+			if(!is_lower_bound(i))	// d = -1
+			{
+				if(G[i] > Gmax4)
+				{
+					Gmax4 = G[i];
+					Gmax4_idx = i;
+				}
+			}
+		}
+	}
+
+	if(max(Gmax1+Gmax2,Gmax3+Gmax4) < eps)
+ 		return 1;
+
+	if(Gmax1+Gmax2 > Gmax3+Gmax4)
+	{
+		out_i = Gmax1_idx;
+		out_j = Gmax2_idx;
+	}
+	else
+	{
+		out_i = Gmax3_idx;
+		out_j = Gmax4_idx;
+	}
+	return 0;
+}
+
+double Solver_NU_SVC::calculate_rho()
+{
+	int nr_free1 = 0,nr_free2 = 0;
+	double ub1 = INF, ub2 = INF;
+	double lb1 = -INF, lb2 = -INF;
+	double sum_free1 = 0, sum_free2 = 0;
+
+	for(int i=0;i<l;i++)
+	{
+		if(y1[i] > 0)
+		{
+			if(is_lower_bound(i))
+				ub1 = min(ub1,G[i]);
+			else if(is_upper_bound(i))
+				lb1 = max(lb1,G[i]);
+			else
+			{
+				++nr_free1;
+				sum_free1 += G[i];
+			}
+		}
+		else
+		{
+			if(is_lower_bound(i))
+				ub2 = min(ub2,G[i]);
+			else if(is_upper_bound(i))
+				lb2 = max(lb2,G[i]);
+			else
+			{
+				++nr_free2;
+				sum_free2 += G[i];
+			}
+		}
+	}
+
+	double r1,r2;
+	if(nr_free1 > 0)
+		r1 = sum_free1/nr_free1;
+	else
+		r1 = (ub1+lb1)/2;
+	
+	if(nr_free2 > 0)
+		r2 = sum_free2/nr_free2;
+	else
+		r2 = (ub2+lb2)/2;
+	
+	*r = (r1+r2)/2;
+	return (r1-r2)/2;
+}
+
+//
 // Q matrices for different formulations
 //
 class C_SVC_Q: public Kernel
 { 
 public:
-	C_SVC_Q(const svm_problem& prob, const svm_parameter& param, const double *_y)
-	:Kernel(prob.l, prob.x, param), l(prob.l), y(_y)
+	C_SVC_Q(const svm_problem& prob, const svm_parameter& param, const double *y_)
+	:Kernel(prob.l, prob.x, param), l(prob.l), y(y_)
 	{
 		cache = new Cache(l,(int)min((double)l,(param.cache_size*(1<<20))/(sizeof(double)*l)));
 	}
@@ -572,36 +730,7 @@ private:
 	Cache *cache;
 };
 
-class NU_SVC_Q: public Kernel
-{
-public:
-	NU_SVC_Q(const svm_problem& prob, const svm_parameter& param, const double *_y)
-	:Kernel(prob.l, prob.x, param), l(prob.l), y(_y)
-	{
-		cache = new Cache(l,(int)min((double)l,(param.cache_size*(1<<20))/(sizeof(double)*l)));
-	}
-	
-	double *get_Q(int i) const
-	{
-		double *data;
-
-		if(cache->get_data(i,&data) == 0)
-		{
-			for(int j=0;j<l;j++)
-				data[j] = y[i]*y[j]*(1+(this->*kernel_function)(i,j));
-		}
-		return data;
-	}
-
-	~NU_SVC_Q()
-	{
-		delete cache;
-	}
-private:
-	const int l;
-	const double *y;
-	Cache *cache;
-};
+#define NU_SVC_Q C_SVC_Q	/* same stuff */
 
 class ONE_CLASS_Q: public Kernel
 {
@@ -704,8 +833,9 @@ static void solve_c_svc(
 		minus_ones[i] = -1;
 	}
 
-	Solver s(l, C_SVC_Q(*prob,*param,prob->y), minus_ones, prob->y,
-		 alpha, param->C, param->eps, obj, rho);
+	Solver s;
+	s.Solve(l, C_SVC_Q(*prob,*param,prob->y), minus_ones, prob->y,
+		alpha, param->C, param->eps, obj, rho);
 
 	delete[] minus_ones;
 
@@ -725,22 +855,42 @@ static void solve_nu_svc(
 	const svm_problem *prob, const svm_parameter *param,
 	double *alpha, double& obj, double& rho, double& upper_bound)
 {
-	int l = prob->l;
-	double *zeros = new double[l];
-	double *ones = new double[l];
 	int i;
+	int l = prob->l;
+	double nu = param->nu;
 
-	int n = (int)(param->nu*prob->l);	// # of alpha's at upper bound
-	if(n>=prob->l)
+	int y_pos = 0;
+	int y_neg = 0;
+
+	for(i=0;i<l;i++)
+		if(prob->y[i]>0)
+			++y_pos;
+		else
+			++y_neg;
+
+	if(nu < 0 || nu*l/2 > min(y_pos,y_neg))
 	{
-		fprintf(stderr,"nu must be in (0,1)\n");
+		fprintf(stderr,"specified nu is infeasible\n");
 		exit(1);
 	}
-	for(i=0;i<n;i++)
-		alpha[i] = 1;
-	alpha[n] = param->nu * prob->l - n;
-	for(i=n+1;i<l;i++)
-		alpha[i] = 0;
+
+	double sum_pos = nu*l/2;
+	double sum_neg = nu*l/2;
+	
+	for(i=0;i<l;i++)
+		if(prob->y[i] > 0)
+		{
+			alpha[i] = min(1.0,sum_pos);
+			sum_pos -= alpha[i];
+		}
+		else
+		{
+			alpha[i] = min(1.0,sum_neg);
+			sum_neg -= alpha[i];
+		}
+
+	double *zeros = new double[l];
+	double *ones = new double[l];
 
 	for(i=0;i<l;i++)
 	{	
@@ -748,18 +898,22 @@ static void solve_nu_svc(
 		ones[i] = 1;
 	}
 
-	Solver s(l, NU_SVC_Q(*prob,*param,prob->y), zeros, ones,
-		 alpha, 1.0, param->eps, obj, rho);
+	double r;
+	Solver_NU_SVC s;
+	s.Solve(l, NU_SVC_Q(*prob,*param,prob->y), zeros, ones,
+		alpha, 1.0, param->eps, obj, rho, prob->y, r);
 
 	delete[] zeros;
 	delete[] ones;
 
-	printf("C = %f\n",1/rho);
+	printf("C = %f\n",1/r);
 
 	for(i=0;i<l;i++)
-		alpha[i] *= prob->y[i]/rho;
+		alpha[i] *= prob->y[i]/r;
 
-	upper_bound = 1/rho;
+	rho /= r;
+	obj /= (r*r);
+	upper_bound = 1/r;
 }
 
 static void solve_one_class(
@@ -789,8 +943,9 @@ static void solve_one_class(
 		ones[i] = 1;
 	}
 
-	Solver s(l, ONE_CLASS_Q(*prob,*param), zeros, ones,
-		 alpha, 1.0, param->eps, obj, rho);
+	Solver s;
+	s.Solve(l, ONE_CLASS_Q(*prob,*param), zeros, ones,
+		alpha, 1.0, param->eps, obj, rho);
 
 	delete[] zeros;
 	delete[] ones;
@@ -819,8 +974,9 @@ static void solve_c_svr(
 		y[i+l] = -1;
 	}
 
-	Solver s(2*l, C_SVR_Q(*prob,*param), linear_term, y,
-		 alpha2, param->C, param->eps, obj, rho);
+	Solver s;
+	s.Solve(2*l, C_SVR_Q(*prob,*param), linear_term, y,
+		alpha2, param->C, param->eps, obj, rho);
 
 	for(i=0;i<l;i++)
 		alpha[i] = alpha2[i] - alpha2[i+l];
@@ -905,17 +1061,10 @@ int svm_classify(const svm_model *model, const svm_node *x,
 	const double *sv_coef = model->sv_coef;
 
 	double sum = 0;
-	if(model->param.svm_type == NU_SVC)
-	{
-		for(int i=0;i<n;i++)
-			sum += sv_coef[i] * (1+Kernel::k_function(x,model->SV[i],model->param));
-	}
-	else
-	{
-		for(int i=0;i<n;i++)
-			sum += sv_coef[i] * Kernel::k_function(x,model->SV[i],model->param);
-		sum-=(model->rho);
-	}
+
+	for(int i=0;i<n;i++)
+		sum += sv_coef[i] * Kernel::k_function(x,model->SV[i],model->param);
+	sum-=(model->rho);
 
 	*decision_value = sum;
 
@@ -954,10 +1103,7 @@ int svm_save_model(const char *model_file_name, const svm_model *model)
 	if(param.kernel_type == POLY || param.kernel_type == SIGMOID)
 		fprintf(fp,"coef0 %g\n", param.coef0);
 
-	if(param.svm_type == C_SVC || param.svm_type == ONE_CLASS ||
-	   param.svm_type == C_SVR)
-		fprintf(fp, "rho %g\n", model->rho);
-
+	fprintf(fp, "rho %g\n", model->rho);
 	fprintf(fp, "SV %d\n", model->n);
 
 	const int n = model->n;

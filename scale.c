@@ -141,11 +141,11 @@ int main(int argc,char **argv)
 		char *p=buf;
 		int next_index=1;
 		int index;
-		int class;
+		double class;
 		double value;
 		
-		sscanf(p,"%d",&class);
-		printf("%+d ",class);
+		sscanf(p,"%lf",&class);
+		printf("%+g ",class);
 
 		SKIP_CLASS
 
