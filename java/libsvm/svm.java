@@ -458,7 +458,7 @@ class Solver {
 
 			if(y[i]!=y[j])
 			{
-				double delta = (-G[i]-G[j])/(Q_i[i]+Q_j[j]+2*Q_i[j]);
+				double delta = (-G[i]-G[j])/Math.max(Q_i[i]+Q_j[j]+2*Q_i[j],(float)0);
 				double diff = alpha[i] - alpha[j];
 				alpha[i] += delta;
 				alpha[j] += delta;
@@ -498,7 +498,7 @@ class Solver {
 			}
 			else
 			{
-				double delta = (G[i]-G[j])/(Q_i[i]+Q_j[j]-2*Q_i[j]);
+				double delta = (G[i]-G[j])/Math.max(Q_i[i]+Q_j[j]-2*Q_i[j],(float)0);
 				double sum = alpha[i] + alpha[j];
 				alpha[i] -= delta;
 				alpha[j] += delta;

@@ -536,7 +536,7 @@ void Solver::Solve(int l, const Kernel& Q, const double *b_, const schar *y_,
 
 		if(y[i]!=y[j])
 		{
-			double delta = (-G[i]-G[j])/(Q_i[i]+Q_j[j]+2*Q_i[j]);
+			double delta = (-G[i]-G[j])/max(Q_i[i]+Q_j[j]+2*Q_i[j],(Qfloat)0);
 			double diff = alpha[i] - alpha[j];
 			alpha[i] += delta;
 			alpha[j] += delta;
@@ -576,7 +576,7 @@ void Solver::Solve(int l, const Kernel& Q, const double *b_, const schar *y_,
 		}
 		else
 		{
-			double delta = (G[i]-G[j])/(Q_i[i]+Q_j[j]-2*Q_i[j]);
+			double delta = (G[i]-G[j])/max(Q_i[i]+Q_j[j]-2*Q_i[j],(Qfloat)0);
 			double sum = alpha[i] + alpha[j];
 			alpha[i] -= delta;
 			alpha[j] += delta;

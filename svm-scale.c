@@ -1,6 +1,7 @@
 /*
 	scale attributes to [lower,upper]
-	usage: scale [-l lower] [-u upper] [-y y_lower y_upper] filename
+	usage: scale [-l lower] [-u upper] [-y y_lower y_upper] 
+		     [-s filename] [-r filename] filename
 */
 #include <float.h>
 #include <stdio.h>
@@ -29,6 +30,8 @@ int main(int argc,char **argv)
 {
 	int i,index;
 	FILE *fp;
+	char *save_filename = NULL;
+	char *restore_filename = NULL;
 
 	for(i=1;i<argc;i++)
 	{
@@ -44,6 +47,8 @@ int main(int argc,char **argv)
 				y_upper = atof(argv[i]);
 				y_scaling = 1;
 				break;
+			case 's': save_filename = argv[i]; break;
+			case 'r': restore_filename = argv[i]; break;
 			default:
 				fprintf(stderr,"unknown option\n");
 				exit(1);
@@ -67,7 +72,7 @@ int main(int argc,char **argv)
 	
 	if(fp==NULL)
 	{
-		fprintf(stderr,"can't open file\n");
+		fprintf(stderr,"can't open file %s\n", argv[i]);
 		exit(1);
 	}
 
@@ -154,6 +159,46 @@ int main(int argc,char **argv)
 
 	rewind(fp);
 
+	/* pass 2.5: save/restore feature_min/feature_max */
+	
+	if(restore_filename)
+	{
+		FILE *fp = fopen(restore_filename,"r");
+		int idx;
+		double fmin, fmax;
+		
+		if(fp==NULL)
+		{
+			fprintf(stderr,"can't open file %s\n", restore_filename);
+			exit(1);
+		}
+		while(fscanf(fp,"%d %lf %lf\n",&idx,&fmin,&fmax)==3)
+		{
+			if(idx<=max_index)
+			{
+				feature_min[idx] = fmin;
+				feature_max[idx] = fmax;
+			}
+		}
+		fclose(fp);
+	}
+	
+	if(save_filename)
+	{
+		FILE *fp = fopen(save_filename,"w");
+		if(fp==NULL)
+		{
+			fprintf(stderr,"can't open file %s\n", save_filename);
+			exit(1);
+		}
+		for(i=1;i<=max_index;i++)
+		{
+			if(feature_min[i]!=feature_max[i])
+				fprintf(fp,"%d %g %g\n",i,feature_min[i],feature_max[i]);
+		}
+		fclose(fp);
+	}
+	
 	/* pass 3: scale */
 	while(readline(fp)!=NULL)
 	{

@@ -163,6 +163,8 @@ class svm_model:
 			self.prob = prob
 			if param.gamma == 0:
 				param.gamma = 1.0/prob.maxlen
+			msg = svmc.svm_check_parameter(prob.prob,param.param)
+			if msg: raise ValueError, msg
 			self.model = svmc.svm_train(prob.prob,param.param)
 
 	def predict(self,x):

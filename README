@@ -9,6 +9,15 @@ Libsvm is available at
 http://www.csie.ntu.edu.tw/~cjlin/libsvm
 Please read the COPYRIGHT file before using libsvm.
 
+Quick Start
+===========
+
+If you are new to SVM and if the data is not large, please go to 
+python directory and use easy.py after installation. It does 
+everything automatic -- from data scaling to parameter selection.
+
+Usage: easy.py training_file [testing_file]
+
 Installation
 ============
 
