@@ -42,7 +42,8 @@ void classify(FILE *input, FILE *output)
 		}
 
 		x[i].index = -1;
-		if(svm_classify(model,x,label,&v))
+		v = svm_classify(model,x);
+		if(v*label > 0)
 			++correct;
 		++total;
 

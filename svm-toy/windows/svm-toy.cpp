@@ -6,8 +6,28 @@
 #define DEFAULT_PARAM "-t 2 -c 100"
 #define XLEN 500
 #define YLEN 500
+#define DrawLine(dc,x1,y1,x2,y2,c) \
+	do { \
+		HPEN hpen = CreatePen(PS_SOLID,0,c); \
+		HPEN horig = SelectPen(dc,hpen); \
+		MoveToEx(dc,x1,y1,NULL); \
+		LineTo(dc,x2,y2); \
+		SelectPen(dc,horig); \
+		DeletePen(hpen); \
+	} while(0)
 
 using namespace std;
+
+COLORREF colors[] =
+{
+	RGB(0,0,0),
+	RGB(0,200,200),
+	RGB(0,150,150),
+	RGB(0,100,100),
+	RGB(100,100,0),
+	RGB(150,150,0),
+	RGB(200,200,0)
+};
 
 HWND main_window;
 HBITMAP buffer;
@@ -84,8 +104,8 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance,
 
 	Edit_SetText(edit,DEFAULT_PARAM);
 
-	brush1 = CreateSolidBrush(RGB(0, 200, 200));
-	brush2 = CreateSolidBrush(RGB(200, 200, 0));
+	brush1 = CreateSolidBrush(colors[1]);
+	brush2 = CreateSolidBrush(colors[6]);
 
 	window_dc = GetDC(main_window);
 	buffer = CreateCompatibleBitmap(window_dc, XLEN, YLEN);
@@ -151,13 +171,14 @@ void button_run_clicked()
 	param.svm_type = C_SVC;
 	param.kernel_type = RBF;
 	param.degree = 3;
-	param.gamma = 0.5;
+	param.gamma = 0;
 	param.coef0 = 0;
 	param.nu = 0.5;
 	param.cache_size = 40;
 	param.C = 1;
 	param.eps = 1e-3;
-	param.p = 0.5;
+	param.p = 0.1;
+	param.shrinking = 1;
 
 	// parse options
 	char str[1024];
@@ -203,6 +224,9 @@ void button_run_clicked()
 			case 'p':
 				param.p = atof(p);
 				break;
+			case 'h':
+				param.shrinking = atoi(p);
+				break;
 		}
 	}
 	
@@ -210,52 +234,111 @@ void button_run_clicked()
 	svm_problem prob;
 
 	prob.l = point_list.size();
-	svm_node *x_space = new svm_node[3 * prob.l];
-	prob.x = new svm_node *[prob.l];
 	prob.y = new double[prob.l];
 
-	i = 0;
-	for (list<point>::iterator q = point_list.begin(); q != point_list.end(); q++, i++)
+	if(param.svm_type == C_SVR)
 	{
-		x_space[3 * i].index = 1;
-		x_space[3 * i].value = q->x;
-		x_space[3 * i + 1].index = 2;
-		x_space[3 * i + 1].value = q->y;
-		x_space[3 * i + 2].index = -1;
-		prob.x[i] = &x_space[3 * i];
-		prob.y[i] = q->value;
-	}
+		if(param.gamma == 0) param.gamma = 1;
+		svm_node *x_space = new svm_node[2 * prob.l];
+		prob.x = new svm_node *[prob.l];
 
-	// build model & classify
-	svm_model *model = svm_train(&prob, &param);
-	svm_node x[3];
-	x[0].index = 1;
-	x[1].index = 2;
-	x[2].index = -1;
-
-	for (i = 0; i < XLEN; i++)
-		for (j = 0; j < YLEN; j++) {
-			x[0].value = (double) i / XLEN;
-			x[1].value = (double) j / YLEN;
-			double d;
-			svm_classify(model, x, 1, &d);
-			COLORREF color;
-			if (d > 1)
-				color = RGB(0, 150, 150);
-			else if (d > 0)
-				color = RGB(0, 100, 100);
-			else if (d > -1)
-				color = RGB(100, 100, 0);
-			else
-				color = RGB(150, 150, 0);
-			SetPixel(window_dc, i, j, color);
-			SetPixel(buffer_dc, i, j, color);
+		i = 0;
+		for (list<point>::iterator q = point_list.begin(); q != point_list.end(); q++, i++)
+		{
+			x_space[2 * i].index = 1;
+			x_space[2 * i].value = q->x;
+			x_space[2 * i + 1].index = -1;
+			prob.x[i] = &x_space[2 * i];
+			prob.y[i] = q->y;
 		}
 
-	svm_destroy_model(model);
-	delete[] x_space;
-	delete[] prob.x;
-	delete[] prob.y;
+		// build model & classify
+		svm_model *model = svm_train(&prob, &param);
+		svm_node x[2];
+		x[0].index = 1;
+		x[1].index = -1;
+		int *j = new int[XLEN];
+
+		for (i = 0; i < XLEN; i++)
+		{
+			x[0].value = (double) i / XLEN;
+			j[i] = (int)(YLEN*svm_classify(model, x));
+		}
+		
+		DrawLine(buffer_dc,0,0,0,YLEN,colors[0]);
+		DrawLine(window_dc,0,0,0,YLEN,colors[0]);
+		
+		int p = (int)(param.p * YLEN);
+		for(int i=1; i < XLEN; i++)
+		{
+			DrawLine(buffer_dc,i,0,i,YLEN,colors[0]);
+			DrawLine(window_dc,i,0,i,YLEN,colors[0]);
+			
+			DrawLine(buffer_dc,i-1,j[i-1],i,j[i],colors[6]);
+			DrawLine(window_dc,i-1,j[i-1],i,j[i],colors[6]);
+			
+			DrawLine(buffer_dc,i-1,j[i-1]+p,i,j[i]+p,colors[4]);
+			DrawLine(window_dc,i-1,j[i-1]+p,i,j[i]+p,colors[4]);
+
+			DrawLine(buffer_dc,i-1,j[i-1]-p,i,j[i]-p,colors[4]);
+			DrawLine(window_dc,i-1,j[i-1]-p,i,j[i]-p,colors[4]);
+		}
+		
+		svm_destroy_model(model);
+		delete[] j;
+		delete[] x_space;
+		delete[] prob.x;
+		delete[] prob.y;
+	}
+	else
+	{
+		if(param.gamma == 0) param.gamma = 0.5;
+		svm_node *x_space = new svm_node[3 * prob.l];
+		prob.x = new svm_node *[prob.l];
+
+		i = 0;
+		for (list<point>::iterator q = point_list.begin(); q != point_list.end(); q++, i++)
+		{
+			x_space[3 * i].index = 1;
+			x_space[3 * i].value = q->x;
+			x_space[3 * i + 1].index = 2;
+			x_space[3 * i + 1].value = q->y;
+			x_space[3 * i + 2].index = -1;
+			prob.x[i] = &x_space[3 * i];
+			prob.y[i] = q->value;
+		}
+
+		// build model & classify
+		svm_model *model = svm_train(&prob, &param);
+		svm_node x[3];
+		x[0].index = 1;
+		x[1].index = 2;
+		x[2].index = -1;
+
+		for (i = 0; i < XLEN; i++)
+			for (j = 0; j < YLEN; j++) {
+				x[0].value = (double) i / XLEN;
+				x[1].value = (double) j / YLEN;
+				double d;
+				d = svm_classify(model, x);
+				COLORREF color;
+				if (d > 1)
+					color = colors[2];
+				else if (d > 0)
+					color = colors[3];
+				else if (d > -1)
+					color = colors[4];
+				else
+					color = colors[5];
+				SetPixel(window_dc, i, j, color);
+				SetPixel(buffer_dc, i, j, color);
+			}
+
+		svm_destroy_model(model);
+		delete[] x_space;
+		delete[] prob.x;
+		delete[] prob.y;
+	}
 	draw_all_points();
 }
 

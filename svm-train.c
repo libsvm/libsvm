@@ -26,7 +26,8 @@ void exit_with_help()
 	"-n nu : set the parameter nu of nu-SVC and one class SVM (default 0.5)\n"
 	"-m cachesize : set cache memory size in MB (default 40)\n"
 	"-e epsilon : set tolerance of termination criterion (default 0.001)\n"
-	"-p epsilon : set epsilon in epsilon-insensitive loss function (default 0.5)\n"
+	"-p epsilon : set epsilon in epsilon-insensitive loss function (default 0.1)\n"
+	"-h shrinking: whether to use the shrinking heuristics, 0 or 1 (default 1)\n"
 	);
 	exit(1);
 }
@@ -72,7 +73,8 @@ void parse_command_line(int argc, char **argv, char *input_file_name, char *mode
 	param.cache_size = 40;
 	param.C = 1;
 	param.eps = 1e-3;
-	param.p = 0.5;
+	param.p = 0.1;
+	param.shrinking = 1;
 
 	// parse options
 	for(i=1;i<argc;i++)
@@ -110,6 +112,9 @@ void parse_command_line(int argc, char **argv, char *input_file_name, char *mode
 				break;
 			case 'p':
 				param.p = atof(argv[i]);
+				break;
+			case 'h':
+				param.shrinking = atoi(argv[i]);
 				break;
 			default:
 				fprintf(stderr,"unknown option\n");

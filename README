@@ -90,7 +90,8 @@ options:
 -n nu : set the parameter nu of nu-SVC and one class SVM (default 0.5)
 -m cachesize : set cache memory size in MB (default 40)
 -e epsilon : set tolerance of termination criterion (default 0.001)
--p epsilon : set epsilon in epsilon-insensitive loss function (default 0.5)
+-p epsilon : set epsilon in epsilon-insensitive loss function (default 0.1)
+-h shrinking: whether to use the shrinking heuristics, 0 or 1 (default 1)
 
 Examples
 =============
@@ -190,6 +191,7 @@ to classify new data.
 		double C;	// for C_SVC and C_SVR
 		double nu;	// for NU_SVC and ONE_CLASS
 		double p;	// for C_SVR
+		int shrinking;	// use the shrinking heuristics
 	};
 
     svm_type can be one of C_SVC, NU_SVC, ONE_CLASS, C_SVR.
@@ -211,7 +213,7 @@ to classify new data.
     eps is the stopping criterion. (we usually use 0.00001 in nu-SVM,
     0.001 in others). nu is the parameter in nu-SVM and one-class-SVM.
     p is the epsilon in epsilon-insensitive loss function of C-SVM
-    regression.
+    regression. shrinking = 1 means shrinking is conducted; = 0 otherwise.
 
     *NOTE* Because svm_model contains pointers to svm_problem, you can
     not free the memory used by svm_problem if you are still using the
@@ -228,9 +230,8 @@ to classify new data.
     This function returns a pointer to the model read from the file,
     or a null pointer if the model could not be loaded.
 
-- Function: int svm_classify(const struct svm_model *model,
-                             const struct svm_node *x,
-                             double label, double *decision_value);
+- Function: double svm_classify(const struct svm_model *model,
+                             const struct svm_node *x);
 
     This function does classification or regression on a test vector x
     given a model.
@@ -238,16 +239,35 @@ to classify new data.
     For a classification model, the value of decision function for x
     is returned in decision_value. For a regression model, the function
     value of x calculated using the model is returned in decision_value.
-    
-    The return value of svm_classify is 1 if the given label and
-    decision_value are of the same sign, 0 otherwise.
-
-    For one-class SVM, the return value of svm_classify is 1 if the value
-    of decision function is positive, 0 otherwise.
 
 - Function: void svm_destroy_model(struct svm_model *model);
 
     This function frees the memory used by a model.
+
+Java version
+============
+
+The precompiled java class archive `libsvm.jar' and its source files are
+in the java subdirectory. To run the programs, use
+
+java -classpath libsvm.jar svm_train <arguments>
+java -classpath libsvm.jar svm_classify <arguments>
+java -classpath libsvm.jar svm_toy
+
+We have tried IBM's and Sun's JDK.
+You may need to add Java runtime library (like classes.zip) to the classpath.
+You may need to increase maximum Java heap size.
+
+Library usages are similar to the C version. These functions are available:
+
+public class svm {
+	public static svm_model svm_train(svm_problem prob, svm_parameter param);
+	public static double svm_classify(svm_model model, svm_node[] x);
+	public static void svm_save_model(String model_file_name, svm_model model) throws IOException
+	public static svm_model svm_load_model(String model_file_name) throws IOException
+}
+
+Note that in Java version, svm_node[] is not ended with a node whose index = -1.
 
 ADDITIONAL INFORMATION
 ============

@@ -13,6 +13,17 @@
 #define XLEN 500
 #define YLEN 500
 
+QRgb colors[] =
+{
+	qRgb(0,0,0),
+	qRgb(0,200,200),
+	qRgb(0,150,150),
+	qRgb(0,100,100),
+	qRgb(100,100,0),
+	qRgb(150,150,0),
+	qRgb(200,200,0)
+};
+
 class SvmToyWindow : public QWidget
 {
 
@@ -57,8 +68,8 @@ private:
 	void draw_point(const point& p)
 	{
 		const QPixmap& icon = choose_icon(p.value);
-		window_painter.drawPixmap(p.x*XLEN,p.y*YLEN,icon);
-		buffer_painter.drawPixmap(p.x*XLEN,p.y*YLEN,icon);
+		window_painter.drawPixmap((int)(p.x*XLEN),(int)(p.y*YLEN),icon);
+		buffer_painter.drawPixmap((int)(p.x*XLEN),(int)(p.y*YLEN),icon);
 	}
 	void draw_all_points()
 	{
@@ -83,13 +94,14 @@ private slots:
 		param.svm_type = C_SVC;
 		param.kernel_type = RBF;
 		param.degree = 3;
-		param.gamma = 0.5;
+		param.gamma = 0;
 		param.coef0 = 0;
 		param.nu = 0.5;
 		param.cache_size = 40;
 		param.C = 1;
 		param.eps = 1e-3;
-		param.p = 0.5;
+		param.p = 0.1;
+		param.shrinking = 1;
 
 		// parse options
 		const char *p = input_line.text();
@@ -133,6 +145,9 @@ private slots:
 				case 'p':
 					param.p = atof(p);
 					break;
+				case 'h':
+					param.shrinking = atoi(p);
+					break;
 			}
 		}
 	
@@ -140,56 +155,124 @@ private slots:
 		svm_problem prob;
 
 		prob.l = point_list.size();
-		svm_node *x_space = new svm_node[3 * prob.l];
-		prob.x = new svm_node *[prob.l];
 		prob.y = new double[prob.l];
 
-		i = 0;
-		for (list <point>::iterator q = point_list.begin(); q != point_list.end(); q++, i++)
+		if(param.svm_type == C_SVR)
 		{
-			x_space[3 * i].index = 1;
-			x_space[3 * i].value = q->x;
-			x_space[3 * i + 1].index = 2;
-			x_space[3 * i + 1].value = q->y;
-			x_space[3 * i + 2].index = -1;
-			prob.x[i] = &x_space[3 * i];
-			prob.y[i] = q->value;
-		}
+			if(param.gamma == 0) param.gamma = 1;
+			svm_node *x_space = new svm_node[2 * prob.l];
+			prob.x = new svm_node *[prob.l];
 
-		// build model & classify
-		svm_model *model = svm_train(&prob, &param);
-		svm_node x[3];
-		x[0].index = 1;
-		x[1].index = 2;
-		x[2].index = -1;
+			i = 0;
+			for (list <point>::iterator q = point_list.begin(); q != point_list.end(); q++, i++)
+			{
+				x_space[2 * i].index = 1;
+				x_space[2 * i].value = q->x;
+				x_space[2 * i + 1].index = -1;
+				prob.x[i] = &x_space[2 * i];
+				prob.y[i] = q->y;
+			}
 
-		for (i = 0; i < XLEN; i++)
-			for (j = 0; j < YLEN ; j++) {
+			// build model & classify
+			svm_model *model = svm_train(&prob, &param);
+			svm_node x[2];
+			x[0].index = 1;
+			x[1].index = -1;
+			int *j = new int[XLEN];
+
+			for (i = 0; i < XLEN; i++)
+			{
 				x[0].value = (double) i / XLEN;
-				x[1].value = (double) j / YLEN;
-				double d;
-				svm_classify(model, x, 1, &d);
-				QRgb color;
-				if (d > 1)
-					color = qRgb(0, 150, 150);
-				else if (d > 0)
-					color = qRgb(0, 100, 100);
-				else if (d > -1)
-					color = qRgb(100, 100, 0);
-				else
-					color = qRgb(150, 150, 0);
+				j[i] = (int)(YLEN*svm_classify(model, x));
+			}
+			
+			buffer_painter.setPen(colors[0]);
+			buffer_painter.drawLine(0,0,0,YLEN-1);
+			window_painter.setPen(colors[0]);
+			window_painter.drawLine(0,0,0,YLEN-1);
 
-				buffer_painter.setPen(color);
-				window_painter.setPen(color);
-				buffer_painter.drawPoint(i,j);
-				window_painter.drawPoint(i,j);
+			int p = (int)(param.p * YLEN);
+			for(i = 1; i < XLEN; i++)
+			{
+				buffer_painter.setPen(colors[0]);
+				buffer_painter.drawLine(i,0,i,YLEN-1);
+				window_painter.setPen(colors[0]);
+				window_painter.drawLine(i,0,i,YLEN-1);
+			
+				buffer_painter.setPen(colors[6]);
+				buffer_painter.drawLine(i-1,j[i-1],i,j[i]);
+				window_painter.setPen(colors[6]);
+				window_painter.drawLine(i-1,j[i-1],i,j[i]);
+			
+				buffer_painter.setPen(colors[4]);
+				buffer_painter.drawLine(i-1,j[i-1]+p,i,j[i]+p);
+				window_painter.setPen(colors[4]);
+				window_painter.drawLine(i-1,j[i-1]+p,i,j[i]+p);
+
+				buffer_painter.setPen(colors[4]);
+				buffer_painter.drawLine(i-1,j[i-1]-p,i,j[i]-p);
+				window_painter.setPen(colors[4]);
+				window_painter.drawLine(i-1,j[i-1]-p,i,j[i]-p);
+			}
+
+			svm_destroy_model(model);
+			delete[] j;
+			delete[] x_space;
+			delete[] prob.x;
+			delete[] prob.y;
 		}
+		else
+		{
+			if(param.gamma == 0) param.gamma = 0.5;
+			svm_node *x_space = new svm_node[3 * prob.l];
+			prob.x = new svm_node *[prob.l];
 
-		svm_destroy_model(model);
-		delete[] x_space;
-		delete[] prob.x;
-		delete[] prob.y;
+			i = 0;
+			for (list <point>::iterator q = point_list.begin(); q != point_list.end(); q++, i++)
+			{
+				x_space[3 * i].index = 1;
+				x_space[3 * i].value = q->x;
+				x_space[3 * i + 1].index = 2;
+				x_space[3 * i + 1].value = q->y;
+				x_space[3 * i + 2].index = -1;
+				prob.x[i] = &x_space[3 * i];
+				prob.y[i] = q->value;
+			}
 
+			// build model & classify
+			svm_model *model = svm_train(&prob, &param);
+			svm_node x[3];
+			x[0].index = 1;
+			x[1].index = 2;
+			x[2].index = -1;
+
+			for (i = 0; i < XLEN; i++)
+				for (j = 0; j < YLEN ; j++) {
+					x[0].value = (double) i / XLEN;
+					x[1].value = (double) j / YLEN;
+					double d;
+					d = svm_classify(model, x);
+					QRgb color;
+					if (d > 1)
+						color = colors[2];
+					else if (d > 0)
+						color = colors[3];
+					else if (d > -1)
+						color = colors[4];
+					else
+						color = colors[5];
+
+					buffer_painter.setPen(color);
+					window_painter.setPen(color);
+					buffer_painter.drawPoint(i,j);
+					window_painter.drawPoint(i,j);
+			}
+
+			svm_destroy_model(model);
+			delete[] x_space;
+			delete[] prob.x;
+			delete[] prob.y;
+		}
 		draw_all_points();
 	}
 	void button_clear_clicked()
@@ -275,11 +358,11 @@ SvmToyWindow::SvmToyWindow()
 	
 	QPainter painter;
 	painter.begin(&icon1);
-	painter.fillRect(0,0,4,4,QBrush(qRgb(0,200,200)));
+	painter.fillRect(0,0,4,4,QBrush(colors[1]));
 	painter.end();
 
 	painter.begin(&icon2);
-	painter.fillRect(0,0,4,4,QBrush(qRgb(200,200,0)));
+	painter.fillRect(0,0,4,4,QBrush(colors[6]));
 	painter.end();
 
 	button_change_icon.setGeometry( 0, YLEN, 50, 25 );

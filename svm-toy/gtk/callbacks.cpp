@@ -104,13 +104,14 @@ on_button_run_clicked                  (GtkButton       *button,
 	param.svm_type = C_SVC;
 	param.kernel_type = RBF;
 	param.degree = 3;
-	param.gamma = 0.5;
+	param.gamma = 0;
 	param.coef0 = 0;
 	param.nu = 0.5;
 	param.cache_size = 40;
 	param.C = 1;
 	param.eps = 1e-3;
-	param.p = 0.5;
+	param.p = 0.1;
+	param.shrinking = 1;
 
 	// parse options
 	const char *p = gtk_entry_get_text(GTK_ENTRY(entry_option));
@@ -154,6 +155,9 @@ on_button_run_clicked                  (GtkButton       *button,
 			case 'p':
 				param.p = atof(p);
 				break;
+			case 'h':
+				param.shrinking = atoi(p);
+				break;
 		}
 	}
 	
@@ -161,55 +165,118 @@ on_button_run_clicked                  (GtkButton       *button,
 	svm_problem prob;
 
 	prob.l = point_list.size();
-	svm_node *x_space = new svm_node[3 * prob.l];
-	prob.x = new svm_node *[prob.l];
 	prob.y = new double[prob.l];
 
-	i = 0;
-	for (list <point>::iterator q = point_list.begin(); q != point_list.end(); q++, i++)
+	if(param.svm_type == C_SVR)
 	{
-		x_space[3 * i].index = 1;
-		x_space[3 * i].value = q->x;
-		x_space[3 * i + 1].index = 2;
-		x_space[3 * i + 1].value = q->y;
-		x_space[3 * i + 2].index = -1;
-		prob.x[i] = &x_space[3 * i];
-		prob.y[i] = q->value;
-	}
+		if(param.gamma == 0) param.gamma = 1;
+		svm_node *x_space = new svm_node[2 * prob.l];
+		prob.x = new svm_node *[prob.l];
 
-	// build model & classify
-	svm_model *model = svm_train(&prob, &param);
-	svm_node x[3];
-	x[0].index = 1;
-	x[1].index = 2;
-	x[2].index = -1;
-	
-	for (i = 0; i < XLEN; i++) 
-		for (j = 0; j < YLEN; j++) {
-			x[0].value = (double) i / XLEN;
-			x[1].value = (double) j / YLEN;
-			double d;
-			svm_classify(model, x, 1, &d);
-			GdkColor *color;
-			if (d > 1)
-				color = &colors[2];
-			else if (d > 0)
-				color = &colors[3];
-			else if (d > -1)
-				color = &colors[4];
-			else
-				color = &colors[5];
-
-			gdk_gc_set_foreground(gc,color);
-			gdk_draw_point(pixmap,gc,i,j);
-			gdk_draw_point(draw_main->window,gc,i,j);
+		i = 0;
+		for (list <point>::iterator q = point_list.begin(); q != point_list.end(); q++, i++)
+		{
+			x_space[2 * i].index = 1;
+			x_space[2 * i].value = q->x;
+			x_space[2 * i + 1].index = -1;
+			prob.x[i] = &x_space[2 * i];
+			prob.y[i] = q->y;
 		}
 
-	svm_destroy_model(model);
-	delete[] x_space;
-	delete[] prob.x;
-	delete[] prob.y;
+		// build model & classify
+		svm_model *model = svm_train(&prob, &param);
+		svm_node x[2];
+		x[0].index = 1;
+		x[1].index = -1;
+		int *j = new int[XLEN];
+	
+		for (i = 0; i < XLEN; i++) 
+		{
+			x[0].value = (double) i / XLEN;
+			j[i] = (int)(YLEN*svm_classify(model, x));
+		}
 
+		gdk_gc_set_foreground(gc,&colors[0]);
+		gdk_draw_line(pixmap,gc,0,0,0,YLEN-1);
+		gdk_draw_line(draw_main->window,gc,0,0,0,YLEN-1);
+		
+		int p = (int)(param.p * YLEN);
+		for(i = 1; i < XLEN; i++)
+		{
+			gdk_gc_set_foreground(gc,&colors[0]);
+			gdk_draw_line(pixmap,gc,i,0,i,YLEN-1);
+			gdk_draw_line(draw_main->window,gc,i,0,i,YLEN-1);
+			
+			gdk_gc_set_foreground(gc,&colors[6]);
+			gdk_draw_line(pixmap,gc,i-1,j[i-1],i,j[i]);
+			gdk_draw_line(draw_main->window,gc,i-1,j[i-1],i,j[i]);
+			
+			gdk_gc_set_foreground(gc,&colors[4]);
+			gdk_draw_line(pixmap,gc,i-1,j[i-1]+p,i,j[i]+p);
+			gdk_draw_line(draw_main->window,gc,i-1,j[i-1]+p,i,j[i]+p);
+			
+			gdk_gc_set_foreground(gc,&colors[4]);
+			gdk_draw_line(pixmap,gc,i-1,j[i-1]-p,i,j[i]-p);
+			gdk_draw_line(draw_main->window,gc,i-1,j[i-1]-p,i,j[i]-p);
+		}
+
+		svm_destroy_model(model);
+		delete[] j;
+		delete[] x_space;
+		delete[] prob.x;
+		delete[] prob.y;
+	}
+	else
+	{
+		if(param.gamma == 0) param.gamma = 0.5;
+		svm_node *x_space = new svm_node[3 * prob.l];
+		prob.x = new svm_node *[prob.l];
+
+		i = 0;
+		for (list <point>::iterator q = point_list.begin(); q != point_list.end(); q++, i++)
+		{
+			x_space[3 * i].index = 1;
+			x_space[3 * i].value = q->x;
+			x_space[3 * i + 1].index = 2;
+			x_space[3 * i + 1].value = q->y;
+			x_space[3 * i + 2].index = -1;
+			prob.x[i] = &x_space[3 * i];
+			prob.y[i] = q->value;
+		}
+
+		// build model & classify
+		svm_model *model = svm_train(&prob, &param);
+		svm_node x[3];
+		x[0].index = 1;
+		x[1].index = 2;
+		x[2].index = -1;
+	
+		for (i = 0; i < XLEN; i++) 
+			for (j = 0; j < YLEN; j++) {
+				x[0].value = (double) i / XLEN;
+				x[1].value = (double) j / YLEN;
+				double d;
+				d = svm_classify(model, x);
+				GdkColor *color;
+				if (d > 1)
+					color = &colors[2];
+				else if (d > 0)
+					color = &colors[3];
+				else if (d > -1)
+					color = &colors[4];
+				else
+					color = &colors[5];
+
+				gdk_gc_set_foreground(gc,color);
+				gdk_draw_point(pixmap,gc,i,j);
+				gdk_draw_point(draw_main->window,gc,i,j);
+			}
+
+		svm_destroy_model(model);
+		delete[] x_space;
+		delete[] prob.x;
+		delete[] prob.y;
+	}
 	draw_all_points();
 }
 
