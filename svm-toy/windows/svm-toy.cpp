@@ -1,26 +1,28 @@
 #include <windows.h>
 #include <windowsx.h>
+#include <stdio.h>
 #include <list>
 #include "../../svm.h"
 #define DEFAULT_PARAM "-t 2 -c 100"
+#define XLEN 500
+#define YLEN 500
 
 using namespace std;
 
-int XLEN;
-int YLEN;
 HWND main_window;
-HDC main_dc;
 HBITMAP buffer;
+HDC window_dc;
 HDC buffer_dc;
 HBRUSH brush1, brush2;
 HWND edit;
 
 enum {
-	ID_BUTTON_CHANGE, ID_BUTTON_RUN, ID_BUTTON_CLEAR, ID_EDIT
+	ID_BUTTON_CHANGE, ID_BUTTON_RUN, ID_BUTTON_CLEAR,
+	ID_BUTTON_LOAD, ID_BUTTON_SAVE, ID_EDIT
 };
 
 struct point {
-	int x, y;
+	double x, y;
 	signed char value;
 };
 
@@ -56,8 +58,8 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance,
 				    WS_OVERLAPPEDWINDOW,// window style
 				    CW_USEDEFAULT,	// initial x position
 				    CW_USEDEFAULT,	// initial y position
-				    500,	// initial x size
-				    500,	// initial y size
+				    XLEN,	// initial x size
+				    YLEN+52,	// initial y size
 				    NULL,	// parent window handle
 				    NULL,	// window menu handle
 				    hInstance,	// program instance handle
@@ -66,28 +68,28 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance,
 	ShowWindow(main_window, iCmdShow);
 	UpdateWindow(main_window);
 
-	RECT rect;
-	GetClientRect(main_window, &rect);
-	XLEN = rect.right - rect.left + 1;
-	YLEN = rect.bottom - rect.top + 1;
-
 	CreateWindow("button", "Change", WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
-		     0, YLEN - 25, 50, 25, main_window, (HMENU) ID_BUTTON_CHANGE, hInstance, NULL);
+		     0, YLEN, 50, 25, main_window, (HMENU) ID_BUTTON_CHANGE, hInstance, NULL);
 	CreateWindow("button", "Run", WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
-		     50, YLEN - 25, 50, 25, main_window, (HMENU) ID_BUTTON_RUN, hInstance, NULL);
+		     50, YLEN, 50, 25, main_window, (HMENU) ID_BUTTON_RUN, hInstance, NULL);
 	CreateWindow("button", "Clear", WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
-		     100, YLEN - 25, 50, 25, main_window, (HMENU) ID_BUTTON_CLEAR, hInstance, NULL);
+		     100, YLEN, 50, 25, main_window, (HMENU) ID_BUTTON_CLEAR, hInstance, NULL);
+	CreateWindow("button", "Save", WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
+		     150, YLEN, 50, 25, main_window, (HMENU) ID_BUTTON_SAVE, hInstance, NULL);
+	CreateWindow("button", "Load", WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
+		     200, YLEN, 50, 25, main_window, (HMENU) ID_BUTTON_LOAD, hInstance, NULL);
+
 	edit = CreateWindow("edit", NULL, WS_CHILD | WS_VISIBLE,
-		            150, YLEN - 25, 350, 25, main_window, (HMENU) ID_EDIT, hInstance, NULL);
+		            250, YLEN, 250, 25, main_window, (HMENU) ID_EDIT, hInstance, NULL);
 
 	Edit_SetText(edit,DEFAULT_PARAM);
 
 	brush1 = CreateSolidBrush(RGB(0, 200, 200));
 	brush2 = CreateSolidBrush(RGB(200, 200, 0));
 
-	main_dc = GetDC(main_window);
-	buffer = CreateCompatibleBitmap(main_dc, XLEN, YLEN);
-	buffer_dc = CreateCompatibleDC(main_dc);
+	window_dc = GetDC(main_window);
+	buffer = CreateCompatibleBitmap(window_dc, XLEN, YLEN);
+	buffer_dc = CreateCompatibleDC(window_dc);
 	SelectObject(buffer_dc, buffer);
 	PatBlt(buffer_dc, 0, 0, XLEN, YLEN, BLACKNESS);
 
@@ -98,18 +100,50 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance,
 	return msg.wParam;
 }
 
-void draw_point(HDC hdc, const point & p)
-{
-	RECT rect;
-	rect.left = p.x;
-	rect.top = p.y;
-	rect.right = p.x + 3;
-	rect.bottom = p.y + 3;
-	FillRect(hdc, &rect, (p.value == 1) ? brush1 : brush2);
+int getfilename( HWND hWnd , char *filename, int len, int save) 
+{ 	
+	OPENFILENAME OpenFileName; 	
+	memset(&OpenFileName,0,sizeof(OpenFileName));
+	filename[0]='\0';
+ 	
+	OpenFileName.lStructSize       = sizeof(OPENFILENAME); 
+	OpenFileName.hwndOwner         = hWnd; 	
+	OpenFileName.lpstrFile         = filename; 
+	OpenFileName.nMaxFile          = len; 
+	OpenFileName.Flags             = 0;
+ 
+	return save?GetSaveFileName(&OpenFileName):GetOpenFileName(&OpenFileName);		
 }
 
-void run_svm()
+void clear_all()
 {
+	point_list.clear();
+	PatBlt(buffer_dc, 0, 0, XLEN, YLEN, BLACKNESS);
+	InvalidateRect(main_window, 0, 0);
+}
+
+void draw_point(const point & p)
+{
+	RECT rect;
+	rect.left = int(p.x*XLEN);
+	rect.top = int(p.y*YLEN);
+	rect.right = int(p.x*XLEN) + 3;
+	rect.bottom = int(p.y*YLEN) + 3;
+	FillRect(window_dc, &rect, (p.value == 1) ? brush1 : brush2);
+	FillRect(buffer_dc, &rect, (p.value == 1) ? brush1 : brush2);
+}
+
+void draw_all_points()
+{
+	for(list<point>::iterator p = point_list.begin(); p != point_list.end(); p++)
+		draw_point(*p);
+}
+
+void button_run_clicked()
+{
+	// guard
+	if(point_list.empty()) return;
+
 	svm_parameter param;
 	int i,j;
 	
@@ -123,9 +157,9 @@ void run_svm()
 	param.eps = 1e-3;
 
 	// parse options
-	char str[200];
+	char str[1024];
 	Edit_GetLine(edit, 0, str, sizeof(str));
-	char *p = str;
+	const char *p = str;
 
 	while (1) {
 		while (*p && *p != '-')
@@ -167,14 +201,14 @@ void run_svm()
 	svm_node *x_space = new svm_node[3 * prob.l];
 	prob.x = new svm_node *[prob.l];
 	prob.y = new signed char[prob.l];
-	i = 0;
 
+	i = 0;
 	for (list<point>::iterator q = point_list.begin(); q != point_list.end(); q++, i++)
 	{
 		x_space[3 * i].index = 1;
-		x_space[3 * i].value = (double) q->x / XLEN;
+		x_space[3 * i].value = q->x;
 		x_space[3 * i + 1].index = 2;
-		x_space[3 * i + 1].value = (double) q->y / YLEN;
+		x_space[3 * i + 1].value = q->y;
 		x_space[3 * i + 2].index = -1;
 		prob.x[i] = &x_space[3 * i];
 		prob.y[i] = q->value;
@@ -188,7 +222,7 @@ void run_svm()
 	x[2].index = -1;
 
 	for (i = 0; i < XLEN; i++)
-		for (j = 0; j < YLEN - 25; j++) {
+		for (j = 0; j < YLEN; j++) {
 			x[0].value = (double) i / XLEN;
 			x[1].value = (double) j / YLEN;
 			double d = svm_classify(model, x);
@@ -201,7 +235,7 @@ void run_svm()
 				color = RGB(100, 100, 0);
 			else
 				color = RGB(150, 150, 0);
-			SetPixel(main_dc, i, j, color);
+			SetPixel(window_dc, i, j, color);
 			SetPixel(buffer_dc, i, j, color);
 		}
 
@@ -209,7 +243,7 @@ void run_svm()
 	delete[] x_space;
 	delete[] prob.x;
 	delete[] prob.y;
-	InvalidateRect(main_window, 0, 0);
+	draw_all_points();
 }
 
 LRESULT CALLBACK WndProc(HWND hwnd, UINT iMsg, WPARAM wParam, LPARAM lParam)
@@ -218,27 +252,22 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT iMsg, WPARAM wParam, LPARAM lParam)
 	PAINTSTRUCT ps;
 
 	switch (iMsg) {
-	case WM_CREATE:
-		return 0;
-
 	case WM_LBUTTONDOWN:
 		{
 			int x = LOWORD(lParam);
 			int y = HIWORD(lParam);
-			point p = {x, y, current_value};
+			point p = {(double)x/XLEN, (double)y/YLEN, current_value};
 			point_list.push_back(p);
-			draw_point(main_dc, p);
+			draw_point(p);
 		}
-		break;
+		return 0;
 	case WM_PAINT:
 		{
 			hdc = BeginPaint(hwnd, &ps);
 			BitBlt(hdc, 0, 0, XLEN, YLEN, buffer_dc, 0, 0, SRCCOPY);
-			for (list<point>::iterator p = point_list.begin(); p != point_list.end(); p++)
-				draw_point(hdc, *p);
 			EndPaint(hwnd, &ps);
-			return 0;
 		}
+		return 0;
 	case WM_COMMAND:
 		{
 			int id = LOWORD(wParam);
@@ -247,16 +276,54 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT iMsg, WPARAM wParam, LPARAM lParam)
 				current_value = -current_value;
 				break;
 			case ID_BUTTON_RUN:
-				run_svm();
+				button_run_clicked();
 				break;
 			case ID_BUTTON_CLEAR:
-				point_list.clear();
-				PatBlt(buffer_dc, 0, 0, XLEN, YLEN, BLACKNESS);
-				InvalidateRect(main_window, 0, 0);
+				clear_all();				
+				break;
+			case ID_BUTTON_SAVE:
+				{
+					char filename[1024];
+					if(getfilename(hwnd,filename,1024,1))
+					{
+						FILE *fp = fopen(filename,"w");
+						if(fp)
+						{
+							for (list<point>::iterator p = point_list.begin(); p != point_list.end(); p++)
+								fprintf(fp,"%d 1:%f 2:%f\n",p->value,p->x,p->y);
+							fclose(fp);
+						}
+					}					
+				}
+				break;
+			case ID_BUTTON_LOAD:
+				{
+					char filename[1024];
+					if(getfilename(hwnd,filename,1024,0))					
+					{
+						FILE *fp = fopen(filename,"r");
+						if(fp)
+						{
+							clear_all();
+							char buf[4096];
+							while(fgets(buf,sizeof(buf),fp))
+							{
+								int v;
+								double x,y;
+								if(sscanf(buf,"%d%*d:%lf%*d:%lf",&v,&x,&y)!=3)
+									break;
+								point p = {x,y,v};
+								point_list.push_back(p);
+							}
+							fclose(fp);
+							draw_all_points();
+						}
+					}
+				}
 				break;
 			}
 		}
-		break;
+		return 0;
 	case WM_DESTROY:
 		PostQuitMessage(0);
 		return 0;

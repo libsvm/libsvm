@@ -42,7 +42,14 @@ scale:
 svm-toy:
 
 	This is a simple graphical interface which shows how SVM
-	separate data in a plane.
+	separate data in a plane. You can click in the window to 
+draw data points. Use "change" button to choose class 
+1 or 2, "load" button to load data from a file, "run" button 
+to obtain an SVM model, and "clear" button to clear the window. 
+Note that svm-toy confines data in the [0,1]x[0.1] region so 
+if data are loaded from a file, you have to scale your data 
+into this region.
+
 
 	You can enter options in the bottom of the window, the syntax of
 	options is the same as `svm-train'.

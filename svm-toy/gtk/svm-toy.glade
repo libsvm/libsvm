@@ -26,7 +26,7 @@
 
 <widget>
   <class>GtkWindow</class>
-  <name>window1</name>
+  <name>window</name>
   <signal>
     <name>destroy</name>
     <handler>on_window1_destroy</handler>
@@ -50,7 +50,7 @@
       <class>GtkDrawingArea</class>
       <name>draw_main</name>
       <width>500</width>
-      <height>475</height>
+      <height>500</height>
       <events>GDK_EXPOSURE_MASK | GDK_BUTTON_PRESS_MASK</events>
       <signal>
 	<name>button_press_event</name>
@@ -132,6 +132,40 @@
       </widget>
 
       <widget>
+	<class>GtkButton</class>
+	<name>button_save</name>
+	<can_focus>True</can_focus>
+	<signal>
+	  <name>clicked</name>
+	  <handler>on_button_save_clicked</handler>
+	  <last_modification_time>Fri, 16 Jun 2000 18:23:46 GMT</last_modification_time>
+	</signal>
+	<label>Save</label>
+	<child>
+	  <padding>0</padding>
+	  <expand>False</expand>
+	  <fill>False</fill>
+	</child>
+      </widget>
+
+      <widget>
+	<class>GtkButton</class>
+	<name>button_load</name>
+	<can_focus>True</can_focus>
+	<signal>
+	  <name>clicked</name>
+	  <handler>on_button_load_clicked</handler>
+	  <last_modification_time>Fri, 16 Jun 2000 18:23:56 GMT</last_modification_time>
+	</signal>
+	<label>Load</label>
+	<child>
+	  <padding>0</padding>
+	  <expand>False</expand>
+	  <fill>False</fill>
+	</child>
+      </widget>
+
+      <widget>
 	<class>GtkEntry</class>
 	<name>entry_option</name>
 	<can_focus>True</can_focus>
@@ -151,6 +185,53 @@
 	</child>
       </widget>
     </widget>
+  </widget>
+</widget>
+
+<widget>
+  <class>GtkFileSelection</class>
+  <name>fileselection</name>
+  <border_width>10</border_width>
+  <signal>
+    <name>destroy</name>
+    <handler>on_fileselection_destroy</handler>
+    <last_modification_time>Fri, 16 Jun 2000 18:11:28 GMT</last_modification_time>
+  </signal>
+  <title>Select File</title>
+  <type>GTK_WINDOW_TOPLEVEL</type>
+  <position>GTK_WIN_POS_NONE</position>
+  <modal>True</modal>
+  <allow_shrink>False</allow_shrink>
+  <allow_grow>True</allow_grow>
+  <auto_shrink>False</auto_shrink>
+  <show_file_op_buttons>True</show_file_op_buttons>
+
+  <widget>
+    <class>GtkButton</class>
+    <child_name>FileSel:ok_button</child_name>
+    <name>filesel_ok</name>
+    <can_default>True</can_default>
+    <can_focus>True</can_focus>
+    <signal>
+      <name>clicked</name>
+      <handler>on_filesel_ok_clicked</handler>
+      <last_modification_time>Fri, 16 Jun 2000 18:09:56 GMT</last_modification_time>
+    </signal>
+    <label>OK</label>
+  </widget>
+
+  <widget>
+    <class>GtkButton</class>
+    <child_name>FileSel:cancel_button</child_name>
+    <name>filesel_cancel</name>
+    <can_default>True</can_default>
+    <can_focus>True</can_focus>
+    <signal>
+      <name>clicked</name>
+      <handler>on_filesel_cancel_clicked</handler>
+      <last_modification_time>Fri, 16 Jun 2000 18:09:46 GMT</last_modification_time>
+    </signal>
+    <label>Cancel</label>
   </widget>
 </widget>
 
