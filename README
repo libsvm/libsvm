@@ -22,7 +22,8 @@ The format of training and testing data file is:
 .
 
 <label> is +1 or -1, <index> is an integer starting from 1, <value> is
-a real number.
+a real number. The labels in the testing data file are only used to
+calculate accuracy. If they are unknown, just fill this column with +1.
 
 There is one sample training data file (heart_scale) in this package.
 Type `./svm-train heart_scale', and the program will read the training
