@@ -1,16 +1,17 @@
+.SUFFIXES: .class .java
 FILES =	libsvm/svm.class libsvm/svm_model.class libsvm/svm_node.class \
 	libsvm/svm_parameter.class libsvm/svm_problem.class \
 	svm_train.class svm_predict.class svm_toy.class
 
 #JAVAC = jikes
-#JAVAC_FLAGS = -classpath /opt/IBMJava2-13/jre/lib/rt.jar
+#JAVAC_FLAGS = -target 1.1
 JAVAC = javac
 JAVAC_FLAGS =
 
 all: $(FILES)
 	jar cvf libsvm.jar *.class libsvm/*.class
-	
-%.class: %.java
+
+.java.class:
 	$(JAVAC) $(JAVAC_FLAGS) $<
 
 libsvm/svm.java: libsvm/svm.m4

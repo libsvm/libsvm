@@ -13,7 +13,7 @@ is_win32 = (sys.platform == 'win32')
 svmtrain_exe = "../svm-train"
 gnuplot_exe = "/usr/bin/gnuplot"
 # example for windows
-# svmtrain_exe = r"c:\tmp\libsvm-2.4\windows\svmtrain.exe"
+# svmtrain_exe = r"c:\tmp\libsvm-2.6\windows\svmtrain.exe"
 # gnuplot_exe = r"c:\tmp\gp373w32\pgnuplot.exe"
 
 # global parameters and their default values
@@ -281,7 +281,7 @@ def main():
 
     # hack the queue to become a stack --
     # this is important when some thread
-    # failed and re-put a job. It we still
+    # failed and re-put a job. If we still
     # use FIFO, the job will be put
     # into the end of the queue, and the graph
     # will only be updated in the end
