@@ -461,9 +461,9 @@ Solver::Solver( int _l, const Kernel& Q, const double *b, const double *_y,
 		double v = 0;
 		int i;
 		for(i=0;i<l;i++)
-			v += alpha[i] * (G[i]/2 + b[i]);
+			v += alpha[i] * (G[i] + b[i]);
 
-		obj = v;
+		obj = v/2;
 	}
 
 	printf("\noptimization finished, #iter = %d\n",iter);
@@ -692,7 +692,7 @@ struct svm_model
 
 static void solve_c_svc(
 	const svm_problem *prob, const svm_parameter* param,
-	double *alpha, double& obj, double& rho)
+	double *alpha, double& obj, double& rho, double& upper_bound)
 {
 	int l = prob->l;
 	double *minus_ones = new double[l];
@@ -707,21 +707,23 @@ static void solve_c_svc(
 	Solver s(l, C_SVC_Q(*prob,*param,prob->y), minus_ones, prob->y,
 		 alpha, param->C, param->eps, obj, rho);
 
+	delete[] minus_ones;
+
 	double sum_alpha=0;
 	for(i=0;i<l;i++)
 		sum_alpha += alpha[i];
 
 	printf("nu = %f\n", sum_alpha/(param->C*prob->l));
 
-	delete[] minus_ones;
-
 	for(i=0;i<l;i++)
 		alpha[i] *= prob->y[i];
+
+	upper_bound = param->C;
 }
 
 static void solve_nu_svc(
 	const svm_problem *prob, const svm_parameter *param,
-	double *alpha, double& obj, double& rho)
+	double *alpha, double& obj, double& rho, double& upper_bound)
 {
 	int l = prob->l;
 	double *zeros = new double[l];
@@ -749,18 +751,20 @@ static void solve_nu_svc(
 	Solver s(l, NU_SVC_Q(*prob,*param,prob->y), zeros, ones,
 		 alpha, 1.0, param->eps, obj, rho);
 
-	printf("C = %f\n",1/rho);
-
 	delete[] zeros;
 	delete[] ones;
 
+	printf("C = %f\n",1/rho);
+
 	for(i=0;i<l;i++)
 		alpha[i] *= prob->y[i]/rho;
+
+	upper_bound = 1/rho;
 }
 
 static void solve_one_class(
 	const svm_problem *prob, const svm_parameter *param,
-	double *alpha, double& obj, double& rho)
+	double *alpha, double& obj, double& rho, double& upper_bound)
 {
 	int l = prob->l;
 	double *zeros = new double[l];
@@ -790,11 +794,13 @@ static void solve_one_class(
 
 	delete[] zeros;
 	delete[] ones;
+
+	upper_bound = 1;
 }
 
 static void solve_c_svr(
 	const svm_problem *prob, const svm_parameter *param,
-	double *alpha, double& obj, double& rho)
+	double *alpha, double& obj, double& rho, double & upper_bound)
 {
 	int l = prob->l;
 	double *alpha2 = new double[2*l];
@@ -822,6 +828,8 @@ static void solve_c_svr(
 	delete[] alpha2;
 	delete[] linear_term;
 	delete[] y;
+
+	upper_bound = param->C;
 }
 
 //
@@ -832,20 +840,20 @@ svm_model *svm_train(const svm_problem *prob, const svm_parameter *param)
 	svm_model *model = (svm_model *)malloc(sizeof(svm_model));
 	model->param = *param;
 	double *alpha = new double[prob->l];
-	double obj, rho;
+	double obj, rho, upper_bound;
 	switch(param->svm_type)
 	{
 		case C_SVC:
-			solve_c_svc(prob,param,alpha,obj,rho);
+			solve_c_svc(prob,param,alpha,obj,rho,upper_bound);
 			break;
 		case NU_SVC:
-			solve_nu_svc(prob,param,alpha,obj,rho);
+			solve_nu_svc(prob,param,alpha,obj,rho,upper_bound);
 			break;
 		case ONE_CLASS:
-			solve_one_class(prob,param,alpha,obj,rho);
+			solve_one_class(prob,param,alpha,obj,rho,upper_bound);
 			break;
 		case C_SVR:
-			solve_c_svr(prob,param,alpha,obj,rho);
+			solve_c_svr(prob,param,alpha,obj,rho,upper_bound);
 			break;
 	}
 
@@ -861,7 +869,7 @@ svm_model *svm_train(const svm_problem *prob, const svm_parameter *param)
 		if(fabs(alpha[i]) >= EPS_A)
 		{
 			++nSV;
-			if(fabs(alpha[i]) >= param->C - EPS_A)
+			if(fabs(alpha[i]) >= upper_bound - EPS_A)
 				++nBSV;
 		}
 	}
