@@ -4,7 +4,7 @@
 %}
 
 enum { C_SVC, NU_SVC, ONE_CLASS, EPSILON_SVR, NU_SVR };	/* svm_type */
-enum { LINEAR, POLY, RBF, SIGMOID };	/* kernel_type */
+enum { LINEAR, POLY, RBF, SIGMOID, PRECOMPUTED };	/* kernel_type */
 
 %pragma make_default
 
@@ -12,7 +12,7 @@ struct svm_parameter
 {
 	int svm_type;
 	int kernel_type;
-	double degree;	// for poly
+	int degree;	// for poly
 	double gamma;	// for poly/rbf/sigmoid
 	double coef0;	// for poly/sigmoid
 

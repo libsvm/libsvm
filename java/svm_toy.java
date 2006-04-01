@@ -45,6 +45,8 @@ public class svm_toy extends Applet {
 
 	public void init()
 	{
+		setSize(getSize());
+
 		final Button button_change = new Button("Change");
 		Button button_run = new Button("Run");
 		Button button_clear = new Button("Clear");
@@ -201,7 +203,7 @@ public class svm_toy extends Applet {
 					param.kernel_type = atoi(argv[i]);
 					break;
 				case 'd':
-					param.degree = atof(argv[i]);
+					param.degree = atoi(argv[i]);
 					break;
 				case 'g':
 					param.gamma = atof(argv[i]);
@@ -257,8 +259,11 @@ public class svm_toy extends Applet {
 		prob.l = point_list.size();
 		prob.y = new double[prob.l];
 
-		if(param.svm_type == svm_parameter.EPSILON_SVR ||
-		   param.svm_type == svm_parameter.NU_SVR)
+		if(param.kernel_type == svm_parameter.PRECOMPUTED)
+		{
+		}
+		else if(param.svm_type == svm_parameter.EPSILON_SVR ||
+			param.svm_type == svm_parameter.NU_SVR)
 		{
 			if(param.gamma == 0) param.gamma = 1;
 			prob.x = new svm_node[prob.l][1];
@@ -433,9 +438,9 @@ public class svm_toy extends Applet {
 
 	public Dimension getPreferredSize() { return new Dimension(XLEN,YLEN+50); }
 
-	public void resize(Dimension d) { resize(d.width,d.height); }
-	public void resize(int w,int h) {
-		super.resize(w,h);
+	public void setSize(Dimension d) { setSize(d.width,d.height); }
+	public void setSize(int w,int h) {
+		super.setSize(w,h);
 		XLEN = w;
 		YLEN = h-50;
 		clear_all();
@@ -457,10 +462,10 @@ class AppletFrame extends Frame {
 			}
 		});
 		applet.init();
-		applet.resize(width,height);
+		applet.setSize(width,height);
 		applet.start();
 		this.add(applet);
 		this.pack();
-		this.show();
+		this.setVisible(true);
 	}
 }

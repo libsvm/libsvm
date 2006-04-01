@@ -28,6 +28,7 @@ class svm_train {
 		+"	1 -- polynomial: (gamma*u'*v + coef0)^degree\n"
 		+"	2 -- radial basis function: exp(-gamma*|u-v|^2)\n"
 		+"	3 -- sigmoid: tanh(gamma*u'*v + coef0)\n"
+		+"	4 -- precomputed kernel (kernel values in training_set_file)\n"
 		+"-d degree : set degree in kernel function (default 3)\n"
 		+"-g gamma : set gamma in kernel function (default 1/k)\n"
 		+"-r coef0 : set coef0 in kernel function (default 0)\n"
@@ -74,10 +75,12 @@ class svm_train {
 				);
 		}
 		else
+		{
 			for(i=0;i<prob.l;i++)
 				if(target[i] == prob.y[i])
 					++total_correct;
 			System.out.print("Cross Validation Accuracy = "+100.0*total_correct/prob.l+"%\n");
+		}
 	}
 	
 	private void run(String argv[]) throws IOException
@@ -157,7 +160,7 @@ class svm_train {
 					param.kernel_type = atoi(argv[i]);
 					break;
 				case 'd':
-					param.degree = atof(argv[i]);
+					param.degree = atoi(argv[i]);
 					break;
 				case 'g':
 					param.gamma = atof(argv[i]);
@@ -243,7 +246,7 @@ class svm_train {
 		Vector vy = new Vector();
 		Vector vx = new Vector();
 		int max_index = 0;
-		
+
 		while(true)
 		{
 			String line = fp.readLine();
@@ -275,6 +278,21 @@ class svm_train {
 
 		if(param.gamma == 0)
 			param.gamma = 1.0/max_index;
+
+		if(param.kernel_type == svm_parameter.PRECOMPUTED)
+			for(int i=0;i<prob.l;i++)
+			{
+				if (prob.x[i][0].index != 0)
+				{
+					System.err.print("Wrong kernel matrix: first column must be 0:sample_serial_number\n");
+					System.exit(1);
+				}
+				if ((int)prob.x[i][0].value <= 0 || (int)prob.x[i][0].value > max_index)
+				{
+					System.err.print("Wrong input format: sample_serial_number out of range\n");
+					System.exit(1);
+				}
+			}
 
 		fp.close();
 	}

@@ -21,6 +21,7 @@ void exit_with_help()
 	"	1 -- polynomial: (gamma*u'*v + coef0)^degree\n"
 	"	2 -- radial basis function: exp(-gamma*|u-v|^2)\n"
 	"	3 -- sigmoid: tanh(gamma*u'*v + coef0)\n"
+	"	4 -- precomputed kernel (kernel values in training_set_file)\n"
 	"-d degree : set degree in kernel function (default 3)\n"
 	"-g gamma : set gamma in kernel function (default 1/k)\n"
 	"-r coef0 : set coef0 in kernel function (default 0)\n"
@@ -158,7 +159,7 @@ void parse_command_line(int argc, char **argv, char *input_file_name, char *mode
 				param.kernel_type = atoi(argv[i]);
 				break;
 			case 'd':
-				param.degree = atof(argv[i]);
+				param.degree = atoi(argv[i]);
 				break;
 			case 'g':
 				param.gamma = atof(argv[i]);
@@ -277,6 +278,7 @@ out:
 		prob.x[i] = &x_space[j];
 		fscanf(fp,"%lf",&label);
 		prob.y[i] = label;
+
 		while(1)
 		{
 			int c;
@@ -296,6 +298,21 @@ out2:
 
 	if(param.gamma == 0)
 		param.gamma = 1.0/max_index;
+
+	if(param.kernel_type == PRECOMPUTED)
+		for(i=0;i<prob.l;i++)
+		{
+			if (prob.x[i][0].index != 0)
+			{
+				fprintf(stderr,"Wrong input format: first column must be 0:sample_serial_number\n");
+				exit(1);
+			}
+			if ((int)prob.x[i][0].value <= 0 || (int)prob.x[i][0].value > max_index)
+			{
+				fprintf(stderr,"Wrong input format: sample_serial_number out of range\n");
+				exit(1);
+			}
+		}
 
 	fclose(fp);
 }

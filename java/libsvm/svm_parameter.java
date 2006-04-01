@@ -13,10 +13,11 @@ public class svm_parameter implements Cloneable,java.io.Serializable
 	public static final int POLY = 1;
 	public static final int RBF = 2;
 	public static final int SIGMOID = 3;
+	public static final int PRECOMPUTED = 4;
 
 	public int svm_type;
 	public int kernel_type;
-	public double degree;	// for poly
+	public int degree;	// for poly
 	public double gamma;	// for poly/rbf/sigmoid
 	public double coef0;	// for poly/sigmoid
 
