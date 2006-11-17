@@ -260,6 +260,7 @@ Kernel::Kernel(int l, svm_node * const * x_, const svm_parameter& param)
 			break;
 		case SIGMOID:
 			kernel_function = &Kernel::kernel_sigmoid;
+			break;
 		case PRECOMPUTED:
 			kernel_function = &Kernel::kernel_precomputed;
 			break;
@@ -2014,9 +2015,9 @@ void svm_binary_svc_probability(
 			}		
 			svm_destroy_model(submodel);
 			svm_destroy_param(&subparam);
-			free(subprob.x);
-			free(subprob.y);
 		}
+		free(subprob.x);
+		free(subprob.y);
 	}		
 	sigmoid_train(prob->l,dec_values,prob->y,probA,probB);
 	free(dec_values);
@@ -2529,7 +2530,6 @@ void svm_predict_values(const svm_model *model, const svm_node *x, double* dec_v
 			start[i] = start[i-1]+model->nSV[i-1];
 
 		int p=0;
-		int pos=0;
 		for(i=0;i<nr_class;i++)
 			for(int j=i+1;j<nr_class;j++)
 			{
@@ -2546,8 +2546,9 @@ void svm_predict_values(const svm_model *model, const svm_node *x, double* dec_v
 					sum += coef1[si+k] * kvalue[si+k];
 				for(k=0;k<cj;k++)
 					sum += coef2[sj+k] * kvalue[sj+k];
-				sum -= model->rho[p++];
-				dec_values[pos++] = sum;
+				sum -= model->rho[p];
+				dec_values[p] = sum;
+				p++;
 			}
 
 		free(kvalue);
@@ -2731,9 +2732,8 @@ int svm_save_model(const char *model_file_name, const svm_model *model)
 			}
 		fprintf(fp, "\n");
 	}
-
-	fclose(fp);
-	return 0;
+	if (ferror(fp) != 0 || fclose(fp) != 0) return -1;
+	else return 0;
 }
 
 svm_model *svm_load_model(const char *model_file_name)
@@ -2856,7 +2856,7 @@ svm_model *svm_load_model(const char *model_file_name)
 		}
 		else
 		{
-			fprintf(stderr,"unknown text in model file\n");
+			fprintf(stderr,"unknown text in model file: [%s]\n",cmd);
 			free(model->rho);
 			free(model->label);
 			free(model->nSV);
@@ -2919,8 +2919,7 @@ out:
 out2:
 		x_space[j++].index = -1;
 	}
-
-	fclose(fp);
+	if (ferror(fp) != 0 || fclose(fp) != 0) return NULL;
 
 	model->free_sv = 1;	// XXX
 	return model;
