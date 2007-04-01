@@ -7,10 +7,10 @@
 <a name="_TOP"><b><h1><a
 href=http://www.csie.ntu.edu.tw/~cjlin/libsvm>LIBSVM</a>  FAQ </h1></b></a>
 <b>last modified : </b>
-Thu, 16 Nov 2006 14:22:43 GMT
+Sun,  1 Apr 2007 00:31:43 GMT
 <class="categories">
 <li><a
-href="#_TOP">All Questions</a>(56)</li>
+href="#_TOP">All Questions</a>(57)</li>
 <ul><b>
 <li><a
 href="#/Q1:_Some_courses_which_have_used_libsvm_as_a_tool">Q1:_Some_courses_which_have_used_libsvm_as_a_tool</a>(1)</li>
@@ -19,7 +19,7 @@ href="#/Q2:_Installation_and_running_the_program">Q2:_Installation_and_running_t
 <li><a
 href="#/Q3:_Data_preparation">Q3:_Data_preparation</a>(3)</li>
 <li><a
-href="#/Q4:_Training_and_prediction">Q4:_Training_and_prediction</a>(27)</li>
+href="#/Q4:_Training_and_prediction">Q4:_Training_and_prediction</a>(28)</li>
 <li><a
 href="#/Q5:_Probability_outputs">Q5:_Probability_outputs</a>(3)</li>
 <li><a
@@ -62,7 +62,7 @@ href="#/Q9:_MATLAB_interface">Q9:_MATLAB_interface</a>(2)</li>
 <li class="headlines_item"><a href="#f414">The training time is too long. What should I do?</a></li>
 <li class="headlines_item"><a href="#f415">How do I get the decision value(s)?</a></li>
 <li class="headlines_item"><a href="#f4151">How do I get the distance between a point and the hyperplane?</a></li>
-<li class="headlines_item"><a href="#f416">For some problem sets if I use a large cache (i.e. large -m) on a linux machine, why sometimes I get "segmentation fault ?"</a></li>
+<li class="headlines_item"><a href="#f416">On 32-bit machines, if I use a large cache (i.e. large -m) on a linux machine, why sometimes I get "segmentation fault ?"</a></li>
 <li class="headlines_item"><a href="#f417">How do I disable screen output of svm-train and svm-predict ?</a></li>
 <li class="headlines_item"><a href="#f418">I would like to use my own kernel but find out that there are two subroutines for kernel evaluations: k_function() and kernel_function(). Which one should I modify ?</a></li>
 <li class="headlines_item"><a href="#f419">What method does libsvm use for multi-class SVM ? Why don't you use the "1-against-the rest" method ?</a></li>
@@ -73,6 +73,7 @@ href="#/Q9:_MATLAB_interface">Q9:_MATLAB_interface</a>(2)</li>
 <li class="headlines_item"><a href="#f427">Why the code gives NaN (not a number) results?</a></li>
 <li class="headlines_item"><a href="#f428">Why on windows sometimes grid.py fails?</a></li>
 <li class="headlines_item"><a href="#f429">Why grid.py/easy.py sometimes generates the following warning message?</a></li>
+<li class="headlines_item"><a href="#f430">Why the sign of predicted labels and decision values are sometimes reversed?</a></li>
 <li class="headlines_item"><a href="#f425">Why training a probability model (i.e., -b 1) takes longer time</a></li>
 <li class="headlines_item"><a href="#f426">Why using the -b option does not give me better accuracy?</a></li>
 <li class="headlines_item"><a href="#f427">Why using svm-predict -b 0 and -b 1 gives different accuracy values?</a></li>
@@ -83,12 +84,12 @@ href="#/Q9:_MATLAB_interface">Q9:_MATLAB_interface</a>(2)</li>
 <li class="headlines_item"><a href="#f602">Is the Java version significantly slower than the C++ version?</a></li>
 <li class="headlines_item"><a href="#f603">While training I get the following error message: java.lang.OutOfMemoryError. What is wrong?</a></li>
 <li class="headlines_item"><a href="#f604">Why you have the main source file svm.m4 and then transform it to svm.java?</a></li>
-<li class="headlines_item"><a href="#f702">On MS windows, why does python fail to load the dll file?</a></li>
-<li class="headlines_item"><a href="#f703">How to modify the python interface on MS windows and rebuild the dll file ?</a></li>
+<li class="headlines_item"><a href="#f702">On MS windows, why does python fail to load the pyd file?</a></li>
+<li class="headlines_item"><a href="#f703">How to modify the python interface on MS windows and rebuild the .pyd file ?</a></li>
 <li class="headlines_item"><a href="#f704">Except the python-C++ interface provided, could I use Jython to call libsvm ?</a></li>
 <li class="headlines_item"><a href="#f705">How could I install the python interface on Mac OS? </a></li>
 <li class="headlines_item"><a href="#f706">I typed "make" on a unix system, but it says "Python.h: No such file or directory?"</a></li>
-<li class="headlines_item"><a href="#f801">I compile the MATLAB interface without problem, but why errors</a></li>
+<li class="headlines_item"><a href="#f801">I compile the MATLAB interface without problem, but why errors occur while running it?</a></li>
 <li class="headlines_item"><a href="#f802">Does the MATLAB interface provide a function to do scaling?</a></li>
 </ul></ul>
 
@@ -582,8 +583,9 @@ For large problems, please specify enough cache size (i.e.,
 -m).
 Slow convergence may happen for some difficult cases (e.g. -c is large).
 You can try to use a looser stopping tolerance with -e.
-If that still doesn't work, you may want to contact us. We can show you some
-tricks on improving the training time.
+If that still doesn't work, you may want to train only a subset of the data.
+You can use the program subset.py in the directory "tools" 
+to obtain a random subset.
 
 <p>
 If you are using polynomial kernels, please check the question on the pow() function.
@@ -638,7 +640,7 @@ and add a statement to print w^Tw.
 <a href="#_TOP">[Go Top]</a>  
 <hr/>
   <a name="/Q4:_Training_and_prediction"></a>
-<a name="f416"><b>Q: For some problem sets if I use a large cache (i.e. large -m) on a linux machine, why sometimes I get "segmentation fault ?"</b></a>
+<a name="f416"><b>Q: On 32-bit machines, if I use a large cache (i.e. large -m) on a linux machine, why sometimes I get "segmentation fault ?"</b></a>
 <br/>                                                                                
 <p>
 
@@ -654,13 +656,15 @@ For more details, please read
 <a href=http://groups.google.com/groups?hl=en&lr=&ie=UTF-8&selm=3BA164F6.BAFA4FB%40daimi.au.dk>
 this article</a>.
 <p>
-There are two ways to solve this. If your
+The easiest solution is to switch to a
+ 64-bit machine.
+Otherwise, there are two ways to solve this. If your
 machine supports Intel's PAE (Physical Address
 Extension), you can turn on the option HIGHMEM64G
 in Linux kernel which uses 4G:4G split for
 kernel and user space. If you don't, you can
-try a software `tub' which can elimate the 2G
-boundary for dymanic allocated memory. The `tub'
+try a software `tub' which can eliminate the 2G
+boundary for dynamic allocated memory. The `tub'
 is available at 
 <a href=http://www.bitwagon.com/tub.html>http://www.bitwagon.com/tub.html</a>.
 
@@ -897,11 +901,27 @@ the contour.
 <p align="right">
 <a href="#_TOP">[Go Top]</a>  
 <hr/>
+  <a name="/Q4:_Training_and_prediction"></a>
+<a name="f430"><b>Q: Why the sign of predicted labels and decision values are sometimes reversed?</b></a>
+<br/>                                                                                
+<p>Nothing is wrong. Very likely you have two labels +1/-1 and the first instance in your data
+has -1.
+Think about the case of labels +5/+10. Since
+SVM needs to use +1/-1, internally
+we map +5/+10 to +1/-1 according to which
+label appears first.
+Hence a positive decision value implies
+that we should predict the "internal" +1,
+which may not be the +1 in the input file.
+
+<p align="right">
+<a href="#_TOP">[Go Top]</a>  
+<hr/>
   <a name="/Q5:_Probability_outputs"></a>
 <a name="f425"><b>Q: Why training a probability model (i.e., -b 1) takes longer time</b></a>
 <br/>                                                                                
 <p>
-To construct this probability model, we internaly conduct a 
+To construct this probability model, we internally conduct a 
 cross validation, which is more time consuming than
 a regular training.
 Hence, in general you do parameter selection first without
@@ -1050,9 +1070,9 @@ the C++ code. (though still slower)
 You should try to increase the maximum Java heap size.
 For example,
 <pre>
-java -Xmx256m svm_train.java ...
+java -Xmx2048m -classpath libsvm.jar svm_train ...
 </pre>
-sets the maximum heap size to 256M.
+sets the maximum heap size to 2048M.
 <p align="right">
 <a href="#_TOP">[Go Top]</a>  
 <hr/>
@@ -1068,27 +1088,29 @@ However,  we need some macros (see first 3 lines of svm.m4).
 <a href="#_TOP">[Go Top]</a>  
 <hr/>
   <a name="/Q8:_Python_interface"></a>
-<a name="f702"><b>Q: On MS windows, why does python fail to load the dll file?</b></a>
+<a name="f702"><b>Q: On MS windows, why does python fail to load the pyd file?</b></a>
 <br/>                                                                                
 <p>
-It seems the dll file is version dependent. So far we haven't
+It seems the pyd file is version dependent. So far we haven't
 found out a good solution. Please email us if you have any
 good suggestions.
 <p align="right">
 <a href="#_TOP">[Go Top]</a>  
 <hr/>
   <a name="/Q8:_Python_interface"></a>
-<a name="f703"><b>Q: How to modify the python interface on MS windows and rebuild the dll file ?</b></a>
+<a name="f703"><b>Q: How to modify the python interface on MS windows and rebuild the .pyd file ?</b></a>
 <br/>                                                                                
 <p>
 
 To modify the interface, follow the instructions given in
-<a href=http://www.swig.org/Doc1.1/HTML/Python.html#n2>
-http://www.swig.org/Doc1.1/HTML/Python.html#n2</a>
+<a href=
+http://www.swig.org/Doc1.3/Python.html#Python>
+http://www.swig.org/Doc1.3/Python.html#Python
+</a>
 
 <p>
 
-If you just want to build DLL for a different python version,
+If you just want to build .pyd for a different python version,
 after libsvm 2.5, you can easily use the file Makefile.win.
 See details in README.
 
@@ -1104,6 +1126,7 @@ Settings->C/C++->Preprocessor)
 Project->Settings->Settings For "Win32 Release", Output
 directories should be "Release"
 <li> Build the DLL.
+<li> You may have to rename .dll to .pyd 
 </ol>
 
 
@@ -1187,9 +1210,8 @@ your system administrator.
 <a href="#_TOP">[Go Top]</a>  
 <hr/>
   <a name="/Q9:_MATLAB_interface"></a>
-<a name="f801"><b>Q: I compile the MATLAB interface without problem, but why errors</b></a>
+<a name="f801"><b>Q: I compile the MATLAB interface without problem, but why errors occur while running it?</b></a>
 <br/>                                                                                
-occue while running it?
 <p>
 Your compiler version may not be supported/compatible for MATLAB.
 Please check <a href=http://www.mathworks.com/support/tech-notes/1600/1601.html>this MATLAB page</a> first and then specify the version
