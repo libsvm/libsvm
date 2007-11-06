@@ -21,7 +21,6 @@ void predict(FILE *input, FILE *output)
 
 	int svm_type=svm_get_svm_type(model);
 	int nr_class=svm_get_nr_class(model);
-	int *labels=(int *) malloc(nr_class*sizeof(int));
 	double *prob_estimates=NULL;
 	int j;
 
@@ -31,12 +30,14 @@ void predict(FILE *input, FILE *output)
 			printf("Prob. model for test data: target value = predicted value + z,\nz: Laplace distribution e^(-|z|/sigma)/(2sigma),sigma=%g\n",svm_get_svr_probability(model));
 		else
 		{
+			int *labels=(int *) malloc(nr_class*sizeof(int));
 			svm_get_labels(model,labels);
 			prob_estimates = (double *) malloc(nr_class*sizeof(double));
 			fprintf(output,"labels");		
 			for(j=0;j<nr_class;j++)
 				fprintf(output," %d",labels[j]);
 			fprintf(output,"\n");
+			free(labels);
 		}
 	}
 	while(1)
@@ -70,7 +71,7 @@ void predict(FILE *input, FILE *output)
 		}	
 
 out2:
-		x[i++].index = -1;
+		x[i].index = -1;
 
 		if (predict_probability && (svm_type==C_SVC || svm_type==NU_SVC))
 		{
@@ -108,10 +109,7 @@ out2:
 		printf("Accuracy = %g%% (%d/%d) (classification)\n",
 		       (double)correct/total*100,correct,total);
 	if(predict_probability)
-	{
 		free(prob_estimates);
-		free(labels);
-	}
 }
 
 void exit_with_help()
@@ -170,11 +168,18 @@ int main(int argc, char **argv)
 	line = (char *) malloc(max_line_len*sizeof(char));
 	x = (struct svm_node *) malloc(max_nr_attr*sizeof(struct svm_node));
 	if(predict_probability)
+	{
 		if(svm_check_probability_model(model)==0)
 		{
 			fprintf(stderr,"Model does not support probabiliy estimates\n");
 			exit(1);
 		}
+	}
+	else
+	{
+		if(svm_check_probability_model(model)!=0)
+			printf("Model supports probability estimates, but disabled in prediction.\n");
+	}
 	predict(input,output);
 	svm_destroy_model(model);
 	free(line);
