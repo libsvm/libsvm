@@ -8,7 +8,7 @@ if len(sys.argv) <= 1:
 	print 'Usage: %s training_file [testing_file]' % sys.argv[0]
 	raise SystemExit
 
-# svm, grid, and gnuplot executable
+# svm, grid, and gnuplot executable files
 
 is_win32 = (sys.platform == 'win32')
 if not is_win32:
@@ -19,9 +19,9 @@ if not is_win32:
 	gnuplot_exe = "/usr/bin/gnuplot"
 else:
         # example for windows
-	svmscale_exe = r"..\windows\svmscale.exe"
-	svmtrain_exe = r"..\windows\svmtrain.exe"
-	svmpredict_exe = r"..\windows\svmpredict.exe"
+	svmscale_exe = r"..\windows\svm-scale.exe"
+	svmtrain_exe = r"..\windows\svm-train.exe"
+	svmpredict_exe = r"..\windows\svm-predict.exe"
 	gnuplot_exe = r"c:\tmp\gnuplot\bin\pgnuplot.exe"
 	grid_py = r".\grid.py"
 
@@ -54,7 +54,7 @@ print 'Cross validation...'
 f = Popen(cmd, shell = True, stdout = PIPE).stdout
 
 line = ''
-while 1:
+while True:
 	last_line = line
 	line = f.readline()
 	if not line: break
@@ -64,7 +64,7 @@ print 'Best c=%s, g=%s CV rate=%s' % (c,g,rate)
 
 cmd = '%s -c %s -g %s "%s" "%s"' % (svmtrain_exe,c,g,scaled_file,model_file)
 print 'Training...'
-Popen(cmd, shell = True, stdout = PIPE)
+call(cmd, shell = True, stdout = PIPE)
 
 print 'Output model: %s' % model_file
 if len(sys.argv) > 2:
