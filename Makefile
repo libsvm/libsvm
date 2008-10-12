@@ -1,7 +1,11 @@
 CXX? = g++
-CFLAGS = -Wall -O3 
+CFLAGS = -Wall -Wconversion -O3 -fPIC
+SHVER = 1
 
 all: svm-train svm-predict svm-scale
+
+lib: svm.o
+	$(CXX) -shared svm.o -o libsvm.so.$(SHVER)
 
 svm-predict: svm-predict.c svm.o
 	$(CXX) $(CFLAGS) svm-predict.c svm.o -o svm-predict -lm

@@ -4,8 +4,6 @@
 #include <string.h>
 #include "svm.h"
 
-char* line;
-int max_line_len = 1024;
 struct svm_node *x;
 int max_nr_attr = 64;
 
@@ -76,9 +74,9 @@ out2:
 		if (predict_probability && (svm_type==C_SVC || svm_type==NU_SVC))
 		{
 			v = svm_predict_probability(model,x,prob_estimates);
-			fprintf(output,"%g ",v);
+			fprintf(output,"%g",v);
 			for(j=0;j<nr_class;j++)
-				fprintf(output,"%g ",prob_estimates[j]);
+				fprintf(output," %g",prob_estimates[j]);
 			fprintf(output,"\n");
 		}
 		else
@@ -138,7 +136,7 @@ int main(int argc, char **argv)
 				predict_probability = atoi(argv[i]);
 				break;
 			default:
-				fprintf(stderr,"unknown option\n");
+				fprintf(stderr,"unknown option: -%c\n", argv[i-1][1]);
 				exit_with_help();
 		}
 	}
@@ -165,7 +163,6 @@ int main(int argc, char **argv)
 		exit(1);
 	}
 	
-	line = (char *) malloc(max_line_len*sizeof(char));
 	x = (struct svm_node *) malloc(max_nr_attr*sizeof(struct svm_node));
 	if(predict_probability)
 	{
@@ -182,7 +179,6 @@ int main(int argc, char **argv)
 	}
 	predict(input,output);
 	svm_destroy_model(model);
-	free(line);
 	free(x);
 	fclose(input);
 	fclose(output);

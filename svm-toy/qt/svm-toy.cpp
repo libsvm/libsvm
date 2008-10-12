@@ -1,10 +1,4 @@
-#include <qapplication.h>
-#include <qpainter.h>
-#include <qpixmap.h>
-#include <qwidget.h>
-#include <qpushbutton.h>
-#include <qlineedit.h>
-#include <qfiledialog.h>
+#include <QtGui>
 #include <stdio.h>
 #include <stdlib.h>
 #include <ctype.h>
@@ -50,7 +44,6 @@ private:
 	QPushButton button_save;
 	QPushButton button_load;
 	QLineEdit input_line;
-	QPainter window_painter;
 	QPainter buffer_painter;
 	struct point {
 		double x, y;
@@ -67,14 +60,14 @@ private:
 	void clear_all()
 	{
 		point_list.clear();
-		buffer.fill(black);
-		paintEvent(NULL);
+		buffer.fill(Qt::black);
+		repaint();
 	}
 	void draw_point(const point& p)
 	{
 		const QPixmap& icon = choose_icon(p.value);
-		window_painter.drawPixmap((int)(p.x*XLEN),(int)(p.y*YLEN),icon);
 		buffer_painter.drawPixmap((int)(p.x*XLEN),(int)(p.y*YLEN),icon);
+		repaint();
 	}
 	void draw_all_points()
 	{
@@ -86,7 +79,7 @@ private slots:
 	{
 		++current_value;
 		if(current_value > 3) current_value = 1;
-		button_change_icon.setPixmap(choose_icon(current_value));
+		button_change_icon.setIcon(choose_icon(current_value));
 	}
 	void button_run_clicked()
 	{
@@ -114,7 +107,7 @@ private slots:
 		param.weight = NULL;
 
 		// parse options
-		const char *p = input_line.text();
+		const char *p = input_line.text().toAscii().constData();
 
 		while (1) {
 			while (*p && *p != '-')
@@ -213,33 +206,23 @@ private slots:
 			
 			buffer_painter.setPen(colors[0]);
 			buffer_painter.drawLine(0,0,0,YLEN-1);
-			window_painter.setPen(colors[0]);
-			window_painter.drawLine(0,0,0,YLEN-1);
 
 			int p = (int)(param.p * YLEN);
 			for(i = 1; i < XLEN; i++)
 			{
 				buffer_painter.setPen(colors[0]);
 				buffer_painter.drawLine(i,0,i,YLEN-1);
-				window_painter.setPen(colors[0]);
-				window_painter.drawLine(i,0,i,YLEN-1);
 			
 				buffer_painter.setPen(colors[5]);
 				buffer_painter.drawLine(i-1,j[i-1],i,j[i]);
-				window_painter.setPen(colors[5]);
-				window_painter.drawLine(i-1,j[i-1],i,j[i]);
 				
 				if(param.svm_type == EPSILON_SVR)
 				{
 					buffer_painter.setPen(colors[2]);
 					buffer_painter.drawLine(i-1,j[i-1]+p,i,j[i]+p);
-					window_painter.setPen(colors[2]);
-					window_painter.drawLine(i-1,j[i-1]+p,i,j[i]+p);
 
 					buffer_painter.setPen(colors[2]);
 					buffer_painter.drawLine(i-1,j[i-1]-p,i,j[i]-p);
-					window_painter.setPen(colors[2]);
-					window_painter.drawLine(i-1,j[i-1]-p,i,j[i]-p);
 				}
 			}
 
@@ -281,9 +264,7 @@ private slots:
 					double d = svm_predict(model, x);
 					if (param.svm_type == ONE_CLASS && d<0) d=2;
 					buffer_painter.setPen(colors[(int)d]);
-					window_painter.setPen(colors[(int)d]);
 					buffer_painter.drawPoint(i,j);
-					window_painter.drawPoint(i,j);
 			}
 
 			svm_destroy_model(model);
@@ -304,7 +285,7 @@ private slots:
 		QString filename = QFileDialog::getSaveFileName();
 		if(!filename.isNull())
 		{
-			FILE *fp = fopen(filename,"w");
+			FILE *fp = fopen(filename.toAscii().constData(),"w");
 			if(fp)
 			{
 				for(list<point>::iterator p = point_list.begin(); p != point_list.end();p++)
@@ -318,7 +299,7 @@ private slots:
 		QString filename = QFileDialog::getOpenFileName();
 		if(!filename.isNull())
 		{
-			FILE *fp = fopen(filename,"r");
+			FILE *fp = fopen(filename.toAscii().constData(),"r");
 			if(fp)
 			{
 				clear_all();
@@ -351,10 +332,9 @@ SvmToyWindow::SvmToyWindow()
 ,input_line(this)
 ,current_value(1)
 {
-	buffer.resize(XLEN,YLEN);
-	buffer.fill(black);
+	buffer = QPixmap(XLEN,YLEN);
+	buffer.fill(Qt::black);
 
-	window_painter.begin(this);
 	buffer_painter.begin(&buffer);
 
 	QObject::connect(&button_change_icon, SIGNAL(clicked()), this,
@@ -371,11 +351,12 @@ SvmToyWindow::SvmToyWindow()
 			 SLOT(button_run_clicked()));
 
   	// don't blank the window before repainting
-	setBackgroundMode( NoBackground );
+	setAttribute(Qt::WA_NoBackground);
   
-	icon1.resize(4,4);
-	icon2.resize(4,4);
-	icon3.resize(4,4);
+	icon1 = QPixmap(4,4);
+	icon2 = QPixmap(4,4);
+	icon3 = QPixmap(4,4);
+	
 	
 	QPainter painter;
 	painter.begin(&icon1);
@@ -398,12 +379,11 @@ SvmToyWindow::SvmToyWindow()
 	input_line.setGeometry( 250, YLEN, 250, 25);
 	
 	input_line.setText(DEFAULT_PARAM);
-	button_change_icon.setPixmap(icon1);
+	button_change_icon.setIcon(icon1);
 }
 
 SvmToyWindow::~SvmToyWindow()
 {
-	window_painter.end();
 	buffer_painter.end();
 }
 
@@ -417,7 +397,8 @@ void SvmToyWindow::mousePressEvent( QMouseEvent* event )
 void SvmToyWindow::paintEvent( QPaintEvent* )
 {
 	// copy the image from the buffer pixmap to the window
-	bitBlt( this, 0, 0, &buffer );
+	QPainter p(this);
+	p.drawPixmap(0, 0, buffer);
 }
 
 int main( int argc, char* argv[] )
@@ -427,7 +408,6 @@ int main( int argc, char* argv[] )
 	SvmToyWindow* mywidget = new SvmToyWindow();
 	mywidget->setGeometry( 100, 100, XLEN, YLEN+25 );
 
-	myapp.setMainWidget( mywidget );
 	mywidget->show();
 	return myapp.exec();
 }
