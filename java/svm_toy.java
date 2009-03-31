@@ -40,7 +40,7 @@ public class svm_toy extends Applet {
 		byte value;
 	}
 
- 	Vector<point> point_list = new Vector<point>();
+	Vector<point> point_list = new Vector<point>();
 	byte current_value = 1;
 
 	public void init()
@@ -375,7 +375,7 @@ public class svm_toy extends Applet {
 		String filename = dialog.getFile();
 		if (filename == null) return;
 		try {
-			DataOutputStream fp = new DataOutputStream(new FileOutputStream(filename));
+			DataOutputStream fp = new DataOutputStream(new BufferedOutputStream(new FileOutputStream(filename)));
 			int n = point_list.size();
 			for(int i=0;i<n;i++)
 			{

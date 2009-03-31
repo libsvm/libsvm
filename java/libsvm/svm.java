@@ -153,14 +153,14 @@ abstract class Kernel extends QMatrix {
 
 	private static double powi(double base, int times)
 	{
-	        double tmp = base, ret = 1.0;
+		double tmp = base, ret = 1.0;
 
-        	for(int t=times; t>0; t/=2)
+		for(int t=times; t>0; t/=2)
 		{
-                	if(t%2==1) ret*=tmp;
-	                tmp = tmp * tmp;
-        	}
-	        return ret;
+			if(t%2==1) ret*=tmp;
+			tmp = tmp * tmp;
+		}
+		return ret;
 	}
 
 	double kernel_function(int i, int j)
@@ -274,7 +274,7 @@ abstract class Kernel extends QMatrix {
 			case svm_parameter.SIGMOID:
 				return Math.tanh(param.gamma*dot(x,y)+param.coef0);
 			case svm_parameter.PRECOMPUTED:
-				return 	x[(int)(y[0].value)].value;
+				return	x[(int)(y[0].value)].value;
 			default:
 				return 0;	// java
 		}
@@ -375,7 +375,7 @@ class Solver {
 				nr_free++;
 
 		if(2*nr_free < active_size)
-			System.out.print("\nWarning: using -h 0 may be faster\n");
+			svm.info("\nWarning: using -h 0 may be faster\n");
 
 		if (nr_free*l > 2*active_size*(l-active_size))
 		{
@@ -467,7 +467,7 @@ class Solver {
 			{
 				counter = Math.min(l,1000);
 				if(shrinking!=0) do_shrinking();
-				System.err.print(".");
+				svm.info(".");
 			}
 
 			if(select_working_set(working_set)!=0)
@@ -476,7 +476,7 @@ class Solver {
 				reconstruct_gradient();
 				// reset active set size and check
 				active_size = l;
-				System.err.print("*");
+				svm.info("*");
 				if(select_working_set(working_set)!=0)
 					break;
 				else
@@ -652,7 +652,7 @@ class Solver {
 		si.upper_bound_p = Cp;
 		si.upper_bound_n = Cn;
 
-		System.out.print("\noptimization finished, #iter = "+iter+"\n");
+		svm.info("\noptimization finished, #iter = "+iter+"\n");
 	}
 
 	// return 1 if already optimal, return 0 otherwise
@@ -994,7 +994,7 @@ final class Solver_NU extends Solver
 		}
 
 		if(Math.max(Gmaxp+Gmaxp2,Gmaxn+Gmaxn2) < eps)
- 			return 1;
+			return 1;
 	
 		if(y[Gmin_idx] == +1)
 			working_set[0] = Gmaxp_idx;
@@ -1279,7 +1279,21 @@ public class svm {
 	//
 	// construct and solve various formulations
 	//
-	public static final int LIBSVM_VERSION=288; 
+	public static final int LIBSVM_VERSION=289; 
+
+	public static svm_print_interface svm_print_string = new svm_print_interface()
+	{
+		public void print(String s)
+		{
+			System.out.print(s);
+		}
+	};
+
+	static void info(String s) 
+	{
+		svm_print_string.print(s);
+	}
+
 	private static void solve_c_svc(svm_problem prob, svm_parameter param,
 					double[] alpha, Solver.SolutionInfo si,
 					double Cp, double Cn)
@@ -1306,14 +1320,14 @@ public class svm {
 			sum_alpha += alpha[i];
 
 		if (Cp==Cn)
-			System.out.print("nu = "+sum_alpha/(Cp*prob.l)+"\n");
+			svm.info("nu = "+sum_alpha/(Cp*prob.l)+"\n");
 
 		for(i=0;i<l;i++)
 			alpha[i] *= y[i];
 	}
 
 	private static void solve_nu_svc(svm_problem prob, svm_parameter param,
-				 	double[] alpha, Solver.SolutionInfo si)
+					double[] alpha, Solver.SolutionInfo si)
 	{
 		int i;
 		int l = prob.l;
@@ -1352,7 +1366,7 @@ public class svm {
 			alpha, 1.0, 1.0, param.eps, si, param.shrinking);
 		double r = si.r;
 
-		System.out.print("C = "+1/r+"\n");
+		svm.info("C = "+1/r+"\n");
 
 		for(i=0;i<l;i++)
 			alpha[i] *= y[i]/r;
@@ -1364,7 +1378,7 @@ public class svm {
 	}
 
 	private static void solve_one_class(svm_problem prob, svm_parameter param,
-				    	double[] alpha, Solver.SolutionInfo si)
+					double[] alpha, Solver.SolutionInfo si)
 	{
 		int l = prob.l;
 		double[] zeros = new double[l];
@@ -1421,7 +1435,7 @@ public class svm {
 			alpha[i] = alpha2[i] - alpha2[i+l];
 			sum_alpha += Math.abs(alpha[i]);
 		}
-		System.out.print("nu = "+sum_alpha/(param.C*l)+"\n");
+		svm.info("nu = "+sum_alpha/(param.C*l)+"\n");
 	}
 
 	private static void solve_nu_svr(svm_problem prob, svm_parameter param,
@@ -1451,7 +1465,7 @@ public class svm {
 		s.Solve(2*l, new SVR_Q(prob,param), linear_term, y,
 			alpha2, C, C, param.eps, si, param.shrinking);
 
-		System.out.print("epsilon = "+(-si.r)+"\n");
+		svm.info("epsilon = "+(-si.r)+"\n");
 		
 		for(i=0;i<l;i++)
 			alpha[i] = alpha2[i] - alpha2[i+l];
@@ -1491,7 +1505,7 @@ public class svm {
 				break;
 		}
 
-		System.out.print("obj = "+si.obj+", rho = "+si.rho+"\n");
+		svm.info("obj = "+si.obj+", rho = "+si.rho+"\n");
 
 		// output SVs
 
@@ -1515,7 +1529,7 @@ public class svm {
 			}
 		}
 
-		System.out.print("nSV = "+nSV+", nBSV = "+nBSV+"\n");
+		svm.info("nSV = "+nSV+", nBSV = "+nBSV+"\n");
 
 		decision_function f = new decision_function();
 		f.alpha = alpha;
@@ -1535,7 +1549,7 @@ public class svm {
 			if (labels[i] > 0) prior1+=1;
 			else prior0+=1;
 	
-		int max_iter=100; 	// Maximal number of iterations
+		int max_iter=100;	// Maximal number of iterations
 		double min_step=1e-10;	// Minimal step taken in line search
 		double sigma=1e-12;	// For numerically strict PD of Hessian
 		double eps=1e-5;
@@ -1599,7 +1613,7 @@ public class svm {
 			gd=g1*dA+g2*dB;
 
 
-			stepsize = 1; 		// Line Search
+			stepsize = 1;		// Line Search
 			while (stepsize >= min_step)
 			{
 				newA = A + stepsize * dA;
@@ -1627,13 +1641,13 @@ public class svm {
 			
 			if (stepsize < min_step)
 			{
-				System.err.print("Line search fails in two-class probability estimates\n");
+				svm.info("Line search fails in two-class probability estimates\n");
 				break;
 			}
 		}
 		
 		if (iter>=max_iter)
-			System.err.print("Reaching maximal iterations in two-class probability estimates\n");
+			svm.info("Reaching maximal iterations in two-class probability estimates\n");
 		probAB[0]=A;probAB[1]=B;
 	}
 
@@ -1703,7 +1717,7 @@ public class svm {
 			}
 		}
 		if (iter>=max_iter)
-			System.err.print("Exceeds max_iter in multiclass_prob\n");
+			svm.info("Exceeds max_iter in multiclass_prob\n");
 	}
 
 	// Cross-validation decision values for probability estimates
@@ -1813,7 +1827,7 @@ public class svm {
 			else 
 				mae+=Math.abs(ymv[i]);
 		mae /= (prob.l-count);
-		System.err.print("Prob. model for test data: target value = predicted value + z,\nz: Laplace distribution e^(-|z|/sigma)/(2sigma),sigma="+mae+"\n");
+		svm.info("Prob. model for test data: target value = predicted value + z,\nz: Laplace distribution e^(-|z|/sigma)/(2sigma),sigma="+mae+"\n");
 		return mae;
 	}
 
@@ -2062,7 +2076,7 @@ public class svm {
 				nz_count[i] = nSV;
 			}
 
-			System.out.print("Total nSV = "+nnz+"\n");
+			svm.info("Total nSV = "+nnz+"\n");
 
 			model.l = nnz;
 			model.SV = new svm_node[nnz][];
@@ -2130,7 +2144,7 @@ public class svm {
 			int nr_class = tmp_nr_class[0];
 			int[] label = tmp_label[0];
 			int[] start = tmp_start[0];
-			int[] count = tmp_count[0]; 		
+			int[] count = tmp_count[0];		
 
 			// random shuffle and then data grouped by fold using the array perm
 			int[] fold_count = new int[nr_fold];
@@ -2387,7 +2401,7 @@ public class svm {
 
 	public static void svm_save_model(String model_file_name, svm_model model) throws IOException
 	{
-		DataOutputStream fp = new DataOutputStream(new FileOutputStream(model_file_name));
+		DataOutputStream fp = new DataOutputStream(new BufferedOutputStream(new FileOutputStream(model_file_name)));
 
 		svm_parameter param = model.param;
 
