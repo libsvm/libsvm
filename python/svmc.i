@@ -57,6 +57,8 @@ void svm_destroy_model(struct svm_model *model);
 const char *svm_check_parameter(const struct svm_problem *prob, const struct svm_parameter *param);
 int svm_check_probability_model(const struct svm_model *model);
 
+extern void (*svm_print_string) (const char *);
+
 %include carrays.i		
 %array_functions(int,int)
 %array_functions(double,double)
@@ -94,4 +96,16 @@ void svm_node_matrix_destroy(struct svm_node **matrix)
 	free(matrix);
 }
 
+void print_null(const char *s) {}
+
+void svm_set_quiet()
+{
+	svm_print_string = &print_null;
+}
+
 %}
+
+
+
+
+
