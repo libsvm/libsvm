@@ -1279,15 +1279,18 @@ public class svm {
 	//
 	// construct and solve various formulations
 	//
-	public static final int LIBSVM_VERSION=290; 
+	public static final int LIBSVM_VERSION=291; 
 
-	public static svm_print_interface svm_print_string = new svm_print_interface()
+	private static svm_print_interface svm_print_stdout = new svm_print_interface()
 	{
 		public void print(String s)
 		{
 			System.out.print(s);
+			System.out.flush();
 		}
 	};
+
+	private static svm_print_interface svm_print_string = svm_print_stdout;
 
 	static void info(String s) 
 	{
@@ -2261,7 +2264,7 @@ public class svm {
 		}
 	}
 
-	public static void svm_predict_values(svm_model model, svm_node[] x, double[] dec_values)
+	public static double svm_predict_values(svm_model model, svm_node[] x, double[] dec_values)
 	{
 		if(model.param.svm_type == svm_parameter.ONE_CLASS ||
 		   model.param.svm_type == svm_parameter.EPSILON_SVR ||
@@ -2273,6 +2276,11 @@ public class svm {
 				sum += sv_coef[i] * Kernel.k_function(x,model.SV[i],model.param);
 			sum -= model.rho[0];
 			dec_values[0] = sum;
+
+			if(model.param.svm_type == svm_parameter.ONE_CLASS)
+				return (sum>0)?1:-1;
+			else
+				return sum;
 		}
 		else
 		{
@@ -2288,6 +2296,10 @@ public class svm {
 			start[0] = 0;
 			for(i=1;i<nr_class;i++)
 				start[i] = start[i-1]+model.nSV[i-1];
+
+			int[] vote = new int[nr_class];
+			for(i=0;i<nr_class;i++)
+				vote[i] = 0;
 
 			int p=0;
 			for(i=0;i<nr_class;i++)
@@ -2308,51 +2320,35 @@ public class svm {
 						sum += coef2[sj+k] * kvalue[sj+k];
 					sum -= model.rho[p];
 					dec_values[p] = sum;					
-					p++;
-				}
-		}
-	}
 
-	public static double svm_predict(svm_model model, svm_node[] x)
-	{
-		if(model.param.svm_type == svm_parameter.ONE_CLASS ||
-		   model.param.svm_type == svm_parameter.EPSILON_SVR ||
-		   model.param.svm_type == svm_parameter.NU_SVR)
-		{
-			double[] res = new double[1];
-			svm_predict_values(model, x, res);
-
-			if(model.param.svm_type == svm_parameter.ONE_CLASS)
-				return (res[0]>0)?1:-1;
-			else
-				return res[0];
-		}
-		else
-		{
-			int i;
-			int nr_class = model.nr_class;
-			double[] dec_values = new double[nr_class*(nr_class-1)/2];
-			svm_predict_values(model, x, dec_values);
-
-			int[] vote = new int[nr_class];
-			for(i=0;i<nr_class;i++)
-				vote[i] = 0;
-			int pos=0;
-			for(i=0;i<nr_class;i++)
-				for(int j=i+1;j<nr_class;j++)
-				{
-					if(dec_values[pos++] > 0)
+					if(dec_values[p] > 0)
 						++vote[i];
 					else
 						++vote[j];
+					p++;
 				}
 
 			int vote_max_idx = 0;
 			for(i=1;i<nr_class;i++)
 				if(vote[i] > vote[vote_max_idx])
 					vote_max_idx = i;
+
 			return model.label[vote_max_idx];
 		}
+	}
+
+	public static double svm_predict(svm_model model, svm_node[] x)
+	{
+		int nr_class = model.nr_class;
+		double[] dec_values;
+		if(model.param.svm_type == svm_parameter.ONE_CLASS ||
+				model.param.svm_type == svm_parameter.EPSILON_SVR ||
+				model.param.svm_type == svm_parameter.NU_SVR)
+			dec_values = new double[1];
+		else
+			dec_values = new double[nr_class*(nr_class-1)/2];
+		double pred_result = svm_predict_values(model, x, dec_values);
+		return pred_result;
 	}
 
 	public static double svm_predict_probability(svm_model model, svm_node[] x, double[] prob_estimates)
@@ -2495,8 +2491,11 @@ public class svm {
 
 	public static svm_model svm_load_model(String model_file_name) throws IOException
 	{
-		BufferedReader fp = new BufferedReader(new FileReader(model_file_name));
+		return svm_load_model(new BufferedReader(new FileReader(model_file_name)));
+	}
 
+	public static svm_model svm_load_model(BufferedReader fp) throws IOException
+	{
 		// read parameters
 
 		svm_model model = new svm_model();
@@ -2765,5 +2764,13 @@ public class svm {
 			return 1;
 		else
 			return 0;
+	}
+
+	public static void svm_set_print_string_function(svm_print_interface print_func)
+	{
+		if (print_func == null)
+			svm_print_string = svm_print_stdout;
+		else 
+			svm_print_string = print_func;
 	}
 }

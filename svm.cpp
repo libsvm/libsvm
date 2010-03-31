@@ -41,7 +41,7 @@ static void print_string_stdout(const char *s)
 	fputs(s,stdout);
 	fflush(stdout);
 }
-void (*svm_print_string) (const char *) = &print_string_stdout;
+static void (*svm_print_string) (const char *) = &print_string_stdout;
 #if 1
 static void info(const char *fmt,...)
 {
@@ -1688,26 +1688,26 @@ static decision_function svm_train_one(
 
 //
 // svm_model
-//
+// 
 struct svm_model
 {
-	svm_parameter param;	// parameter
-	int nr_class;		// number of classes, = 2 in regression/one class svm
-	int l;			// total #SV
-	svm_node **SV;		// SVs (SV[l])
-	double **sv_coef;	// coefficients for SVs in decision functions (sv_coef[k-1][l])
-	double *rho;		// constants in decision functions (rho[k*(k-1)/2])
-	double *probA;		// pariwise probability information
+	struct svm_parameter param;	/* parameter */
+	int nr_class;		/* number of classes, = 2 in regression/one class svm */
+	int l;			/* total #SV */
+	struct svm_node **SV;		/* SVs (SV[l]) */
+	double **sv_coef;	/* coefficients for SVs in decision functions (sv_coef[k-1][l]) */
+	double *rho;		/* constants in decision functions (rho[k*(k-1)/2]) */
+	double *probA;		/* pariwise probability information */
 	double *probB;
 
-	// for classification only
+	/* for classification only */
 
-	int *label;		// label of each class (label[k])
-	int *nSV;		// number of SVs for each class (nSV[k])
-				// nSV[0] + nSV[1] + ... + nSV[k-1] = l
-	// XXX
-	int free_sv;		// 1 if svm_model is created by svm_load_model
-				// 0 if svm_model is created by svm_train
+	int *label;		/* label of each class (label[k]) */
+	int *nSV;		/* number of SVs for each class (nSV[k]) */
+				/* nSV[0] + nSV[1] + ... + nSV[k-1] = l */
+	/* XXX */
+	int free_sv;		/* 1 if svm_model is created by svm_load_model*/
+				/* 0 if svm_model is created by svm_train */
 };
 
 // Platt's binary SVM Probablistic Output: an improvement from Lin et al.
@@ -2461,7 +2461,7 @@ double svm_get_svr_probability(const svm_model *model)
 	}
 }
 
-void svm_predict_values(const svm_model *model, const svm_node *x, double* dec_values)
+double svm_predict_values(const svm_model *model, const svm_node *x, double* dec_values)
 {
 	if(model->param.svm_type == ONE_CLASS ||
 	   model->param.svm_type == EPSILON_SVR ||
@@ -2473,6 +2473,11 @@ void svm_predict_values(const svm_model *model, const svm_node *x, double* dec_v
 			sum += sv_coef[i] * Kernel::k_function(x,model->SV[i],model->param);
 		sum -= model->rho[0];
 		*dec_values = sum;
+
+		if(model->param.svm_type == ONE_CLASS)
+			return (sum>0)?1:-1;
+		else
+			return sum;
 	}
 	else
 	{
@@ -2488,6 +2493,10 @@ void svm_predict_values(const svm_model *model, const svm_node *x, double* dec_v
 		start[0] = 0;
 		for(i=1;i<nr_class;i++)
 			start[i] = start[i-1]+model->nSV[i-1];
+
+		int *vote = Malloc(int,nr_class);
+		for(i=0;i<nr_class;i++)
+			vote[i] = 0;
 
 		int p=0;
 		for(i=0;i<nr_class;i++)
@@ -2508,56 +2517,39 @@ void svm_predict_values(const svm_model *model, const svm_node *x, double* dec_v
 					sum += coef2[sj+k] * kvalue[sj+k];
 				sum -= model->rho[p];
 				dec_values[p] = sum;
-				p++;
-			}
 
-		free(kvalue);
-		free(start);
-	}
-}
-
-double svm_predict(const svm_model *model, const svm_node *x)
-{
-	if(model->param.svm_type == ONE_CLASS ||
-	   model->param.svm_type == EPSILON_SVR ||
-	   model->param.svm_type == NU_SVR)
-	{
-		double res;
-		svm_predict_values(model, x, &res);
-		
-		if(model->param.svm_type == ONE_CLASS)
-			return (res>0)?1:-1;
-		else
-			return res;
-	}
-	else
-	{
-		int i;
-		int nr_class = model->nr_class;
-		double *dec_values = Malloc(double, nr_class*(nr_class-1)/2);
-		svm_predict_values(model, x, dec_values);
-
-		int *vote = Malloc(int,nr_class);
-		for(i=0;i<nr_class;i++)
-			vote[i] = 0;
-		int pos=0;
-		for(i=0;i<nr_class;i++)
-			for(int j=i+1;j<nr_class;j++)
-			{
-				if(dec_values[pos++] > 0)
+				if(dec_values[p] > 0)
 					++vote[i];
 				else
 					++vote[j];
+				p++;
 			}
 
 		int vote_max_idx = 0;
 		for(i=1;i<nr_class;i++)
 			if(vote[i] > vote[vote_max_idx])
 				vote_max_idx = i;
+
+		free(kvalue);
+		free(start);
 		free(vote);
-		free(dec_values);
 		return model->label[vote_max_idx];
 	}
+}
+
+double svm_predict(const svm_model *model, const svm_node *x)
+{
+	int nr_class = model->nr_class;
+	double *dec_values;
+	if(model->param.svm_type == ONE_CLASS ||
+	   model->param.svm_type == EPSILON_SVR ||
+	   model->param.svm_type == NU_SVR)
+		dec_values = Malloc(double, 1);
+	else 
+		dec_values = Malloc(double, nr_class*(nr_class-1)/2);
+	double pred_result = svm_predict_values(model, x, dec_values);
+	free(dec_values);
+	return pred_result;
 }
 
 double svm_predict_probability(
@@ -3066,4 +3058,12 @@ int svm_check_probability_model(const svm_model *model)
 		model->probA!=NULL && model->probB!=NULL) ||
 		((model->param.svm_type == EPSILON_SVR || model->param.svm_type == NU_SVR) &&
 		 model->probA!=NULL);
+}
+
+void svm_set_print_string_function(void (*print_func)(const char *))
+{
+	if(print_func == NULL)
+		svm_print_string = &print_string_stdout;
+	else
+		svm_print_string = print_func;
 }

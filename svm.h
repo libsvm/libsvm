@@ -1,7 +1,7 @@
 #ifndef _LIBSVM_H
 #define _LIBSVM_H
 
-#define LIBSVM_VERSION 290
+#define LIBSVM_VERSION 291
 
 #ifdef __cplusplus
 extern "C" {
@@ -57,7 +57,7 @@ int svm_get_nr_class(const struct svm_model *model);
 void svm_get_labels(const struct svm_model *model, int *label);
 double svm_get_svr_probability(const struct svm_model *model);
 
-void svm_predict_values(const struct svm_model *model, const struct svm_node *x, double* dec_values);
+double svm_predict_values(const struct svm_model *model, const struct svm_node *x, double* dec_values);
 double svm_predict(const struct svm_model *model, const struct svm_node *x);
 double svm_predict_probability(const struct svm_model *model, const struct svm_node *x, double* prob_estimates);
 
@@ -67,7 +67,7 @@ void svm_destroy_param(struct svm_parameter *param);
 const char *svm_check_parameter(const struct svm_problem *prob, const struct svm_parameter *param);
 int svm_check_probability_model(const struct svm_model *model);
 
-extern void (*svm_print_string) (const char *);
+void svm_set_print_string_function(void (*print_func)(const char *));
 
 #ifdef __cplusplus
 }
