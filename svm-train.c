@@ -103,8 +103,12 @@ int main(int argc, char **argv)
 	else
 	{
 		model = svm_train(&prob,&param);
-		svm_save_model(model_file_name,model);
-		svm_destroy_model(model);
+		if(svm_save_model(model_file_name,model))
+		{
+			fprintf(stderr, "can't save model to file %s\n", model_file_name);
+			exit(1);
+		}
+		svm_free_and_destroy_model(&model);
 	}
 	svm_destroy_param(&param);
 	free(prob.y);
