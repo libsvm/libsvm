@@ -1,7 +1,7 @@
 #ifndef _LIBSVM_H
 #define _LIBSVM_H
 
-#define LIBSVM_VERSION 300
+#define LIBSVM_VERSION 310
 
 #ifdef __cplusplus
 extern "C" {
@@ -93,10 +93,6 @@ const char *svm_check_parameter(const struct svm_problem *prob, const struct svm
 int svm_check_probability_model(const struct svm_model *model);
 
 void svm_set_print_string_function(void (*print_func)(const char *));
-
-// deprecated
-// this function will be removed in future release
-void svm_destroy_model(struct svm_model *model_ptr); 
 
 #ifdef __cplusplus
 }

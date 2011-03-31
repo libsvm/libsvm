@@ -1803,6 +1803,7 @@ static void sigmoid_train(
 static double sigmoid_predict(double decision_value, double A, double B)
 {
 	double fApB = decision_value*A+B;
+	// 1-p used later; avoid catastrophic cancellation
 	if (fApB >= 0)
 		return exp(-fApB)/(1.0+exp(-fApB));
 	else
@@ -2887,33 +2888,44 @@ svm_model *svm_load_model(const char *model_file_name)
 
 void svm_free_model_content(svm_model* model_ptr)
 {
-	if(model_ptr->free_sv && model_ptr->l > 0)
+	if(model_ptr->free_sv && model_ptr->l > 0 && model_ptr->SV != NULL)
 		free((void *)(model_ptr->SV[0]));
-	for(int i=0;i<model_ptr->nr_class-1;i++)
-		free(model_ptr->sv_coef[i]);
+	if(model_ptr->sv_coef)
+	{
+		for(int i=0;i<model_ptr->nr_class-1;i++)
+			free(model_ptr->sv_coef[i]);
+	}
+
 	free(model_ptr->SV);
+	model_ptr->SV = NULL;
+
 	free(model_ptr->sv_coef);
+	model_ptr->sv_coef = NULL;
+
 	free(model_ptr->rho);
+	model_ptr->rho = NULL;
+
 	free(model_ptr->label);
+	model_ptr->label= NULL;
+
 	free(model_ptr->probA);
+	model_ptr->probA = NULL;
+
 	free(model_ptr->probB);
+	model_ptr->probB= NULL;
+
 	free(model_ptr->nSV);
+	model_ptr->nSV = NULL;
 }
 
 void svm_free_and_destroy_model(svm_model** model_ptr_ptr)
 {
-	svm_model* model_ptr = *model_ptr_ptr;
-	if(model_ptr != NULL)
+	if(model_ptr_ptr != NULL && *model_ptr_ptr != NULL)
 	{
-		svm_free_model_content(model_ptr);
-		free(model_ptr);
+		svm_free_model_content(*model_ptr_ptr);
+		free(*model_ptr_ptr);
+		*model_ptr_ptr = NULL;
 	}
-}
-
-void svm_destroy_model(svm_model* model_ptr)
-{
-	fprintf(stderr,"warning: svm_destroy_model is deprecated and should not be used. Please use svm_free_and_destroy_model(svm_model **model_ptr_ptr)\n");
-	svm_free_and_destroy_model(&model_ptr);
 }
 
 void svm_destroy_param(svm_parameter* param)

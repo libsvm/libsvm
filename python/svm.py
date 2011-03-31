@@ -3,6 +3,7 @@
 from ctypes import *
 from ctypes.util import find_library
 import sys
+import os
 
 # For unix the prefix 'lib' is not considered.
 if find_library('svm'):
@@ -11,9 +12,11 @@ elif find_library('libsvm'):
 	libsvm = CDLL(find_library('libsvm'))
 else:
 	if sys.platform == 'win32':
-		libsvm = CDLL('../windows/libsvm.dll')
+		libsvm = CDLL(os.path.join(os.path.dirname(__file__),\
+				'../windows/libsvm.dll'))
 	else:
-		libsvm = CDLL('../libsvm.so.2')
+		libsvm = CDLL(os.path.join(os.path.dirname(__file__),\
+				'../libsvm.so.2'))
 
 # Construct constants
 SVM_TYPE = ['C_SVC', 'NU_SVC', 'ONE_CLASS', 'EPSILON_SVR', 'NU_SVR' ]
@@ -197,6 +200,14 @@ class svm_parameter(Structure):
 			self.weight_label[i] = weight_label[i]
 
 class svm_model(Structure):
+	_names = ['param', 'nr_class', 'l', 'SV', 'sv_coef', 'rho',
+			'probA', 'probB', 'label', 'nSV', 'free_sv']
+	_types = [svm_parameter, c_int, c_int, POINTER(POINTER(svm_node)),
+			POINTER(POINTER(c_double)), POINTER(c_double),
+			POINTER(c_double), POINTER(c_double), POINTER(c_int),
+			POINTER(c_int), c_int]
+	_fields_ = genFields(_names, _types)
+
 	def __init__(self):
 		self.__createfrom__ = 'python'
 
@@ -222,6 +233,25 @@ class svm_model(Structure):
 
 	def is_probability_model(self):
 		return (libsvm.svm_check_probability_model(self) == 1)
+
+	def get_sv_coef(self):
+		return [tuple(self.sv_coef[j][i] for j in xrange(self.nr_class - 1))
+				for i in xrange(self.l)]
+
+	def get_SV(self):
+		result = []
+		for sparse_sv in self.SV[:self.l]:
+			row = dict()
+			
+			i = 0
+			while True:
+				row[sparse_sv[i].index] = sparse_sv[i].value
+				if sparse_sv[i].index == -1:
+					break
+				i += 1
+
+			result.append(row)
+		return result
 
 def toPyModel(model_ptr):
 	"""
