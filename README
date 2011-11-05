@@ -78,6 +78,12 @@ set called heart_scale.t, then type `svm-predict heart_scale.t
 heart_scale.model output' to see the prediction accuracy. The `output'
 file contains the predicted class labels.
 
+For classification, if training data are in only one class (i.e., all
+labels are the same), then `svm-train' issues a warning message:
+`Warning: training data in only one class. See README for details,'
+which means the training data is very unbalanced. The label in the
+training data is directly returned when testing.
+
 There are some other useful programs in this package.
 
 svm-scale:
@@ -558,7 +564,8 @@ to classify new data.
     label[0] vs. label[nr_class-1], label[1] vs. label[2], ...,
     label[nr_class-2] vs. label[nr_class-1], where label can be
     obtained from the function svm_get_labels. The returned value is
-    the predicted class for x.
+    the predicted class for x. Note that when nr_class = 1, this 
+    function does not give any decision value.
 
     For a regression model, dec_values[0] and the returned value are
     both the function value of x calculated using the model. For a
@@ -645,7 +652,7 @@ You may need to increase maximum Java heap size.
 Library usages are similar to the C version. These functions are available:
 
 public class svm {
-	public static final int LIBSVM_VERSION=310; 
+	public static final int LIBSVM_VERSION=311; 
 	public static svm_model svm_train(svm_problem prob, svm_parameter param);
 	public static void svm_cross_validation(svm_problem prob, svm_parameter param, int nr_fold, double[] target);
 	public static int svm_get_svm_type(svm_model model);
@@ -722,9 +729,10 @@ Additional Information
 
 If you find LIBSVM helpful, please cite it as
 
-Chih-Chung Chang and Chih-Jen Lin, LIBSVM: a library for 
-support vector machines, 2001.
-Software available at http://www.csie.ntu.edu.tw/~cjlin/libsvm
+Chih-Chung Chang and Chih-Jen Lin, LIBSVM : a library for support
+vector machines. ACM Transactions on Intelligent Systems and
+Technology, 2:27:1--27:27, 2011. Software available at
+http://www.csie.ntu.edu.tw/~cjlin/libsvm
 
 LIBSVM implementation document is available at
 http://www.csie.ntu.edu.tw/~cjlin/papers/libsvm.pdf

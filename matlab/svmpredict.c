@@ -1,13 +1,15 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include "svm.h"
+#include "../svm.h"
 
 #include "mex.h"
 #include "svm_model_matlab.h"
 
+#ifdef MX_API_VER
 #if MX_API_VER < 0x07030000
 typedef int mwIndex;
+#endif
 #endif
 
 #define CMD_LEN 2048
@@ -134,7 +136,8 @@ void predict(mxArray *plhs[], const mxArray *prhs[], struct svm_model *model, co
 		// decision values are in plhs[2]
 		if(svm_type == ONE_CLASS ||
 		   svm_type == EPSILON_SVR ||
-		   svm_type == NU_SVR)
+		   svm_type == NU_SVR ||
+		   nr_class == 1) // if only one class in training data, decision values are still returned.
 			plhs[2] = mxCreateDoubleMatrix(testing_instance_number, 1, mxREAL);
 		else
 			plhs[2] = mxCreateDoubleMatrix(testing_instance_number, nr_class*(nr_class-1)/2, mxREAL);
@@ -190,8 +193,11 @@ void predict(mxArray *plhs[], const mxArray *prhs[], struct svm_model *model, co
 			{
 				double *dec_values = (double *) malloc(sizeof(double) * nr_class*(nr_class-1)/2);
 				predict_label = svm_predict_values(model, x, dec_values);
-				for(i=0;i<(nr_class*(nr_class-1))/2;i++)
-					ptr_dec_values[instance_index + i * testing_instance_number] = dec_values[i];
+				if(nr_class == 1) 
+					ptr_dec_values[instance_index] = 1;
+				else
+					for(i=0;i<(nr_class*(nr_class-1))/2;i++)
+						ptr_dec_values[instance_index + i * testing_instance_number] = dec_values[i];
 				free(dec_values);
 			}
 			ptr_predict_label[instance_index] = predict_label;
